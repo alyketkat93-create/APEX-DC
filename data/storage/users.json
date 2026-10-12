@@ -1,0 +1,52 @@
+[
+  {
+    "id": "usr-1",
+    "name": "Eng. Aly Ketkat",
+    "nameAr": "م. علي قطقط",
+    "email": "aly.ketkat@apexdc.com",
+    "role": "Document Control Manager",
+    "company": "APEX Engineering & Construction PMO",
+    "phone": "+966 50 123 4567",
+    "active": true
+  },
+  {
+    "id": "usr-2",
+    "name": "Eng. Tariq Al-Mansoor",
+    "nameAr": "م. طارق المنصور",
+    "email": "tariq.mansoor@dar.com",
+    "role": "Consultant Reviewer",
+    "company": "Dar Al-Handasah Consultants",
+    "phone": "+966 54 987 6543",
+    "active": true
+  },
+  {
+    "id": "usr-3",
+    "name": "Eng. Hisham Al-Husseini",
+    "nameAr": "م. هشام الحسيني",
+    "email": "hisham.husseini@elseif.com",
+    "role": "MEP Construction Manager",
+    "company": "El Seif Engineering Contracting",
+    "phone": "+966 55 333 4455",
+    "active": true
+  },
+  {
+    "id": "usr-4",
+    "name": "Eng. Sarah Al-Ghamdi",
+    "nameAr": "م. سارة الغامدي",
+    "email": "sarah.ghamdi@rsg.sa",
+    "role": "QA/QC Manager",
+    "company": "Red Sea Global Quality Division",
+    "phone": "+966 56 777 8899",
+    "active": true
+  },
+  {
+    "id": "usr-5",
+    "name": "Sultan Al-Otaibi",
+    "nameAr": "سلطان العتيبي",
+    "email": "sultan.otaibi@apexdc.com",
+    "role": "Project Director",
+    "company": "APEX Mega Projects Group",
+    "phone": "+966 50 888 1122",
+    "active": true
+  }
+]

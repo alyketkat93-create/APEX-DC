@@ -1,0 +1,70 @@
+[
+  {
+    "id": "tsk-1",
+    "projectId": "prj-ksp-01",
+    "taskNumber": "TSK-2026-0041",
+    "title": "Expedite Carrier Chiller Factory Witness Testing Protocol & Travel Schedule",
+    "description": "Coordinate with Carrier USA and Dar Al-Handasah for the witness testing of the 3 centrifugal chillers at Carrier Charlotte facility.",
+    "relatedDocumentType": "Technical Submittal",
+    "relatedDocumentId": "sub-1",
+    "relatedDocumentNumber": "APX-KSP-03-MEP-MAT-0024-01",
+    "assignedTo": "Eng. Aly Ketkat",
+    "priority": "High",
+    "startDate": "2026-10-01",
+    "dueDate": "2026-10-15",
+    "status": "In Progress",
+    "checklist": [
+      {
+        "id": "chk-1",
+        "text": "Obtain AHRI test certificate draft from Carrier",
+        "done": true
+      },
+      {
+        "id": "chk-2",
+        "text": "Submit visa invitation letters for consultant engineers",
+        "done": true
+      },
+      {
+        "id": "chk-3",
+        "text": "Obtain client formal approval for travel itinerary",
+        "done": false
+      }
+    ],
+    "createdAt": "2026-10-01T09:00:00Z",
+    "updatedAt": "2026-10-10T11:00:00Z"
+  },
+  {
+    "id": "tsk-2",
+    "projectId": "prj-ksp-01",
+    "taskNumber": "TSK-2026-0042",
+    "title": "Inspect Replacement Pipe Consignment for NCR-0014 Closeout",
+    "description": "Perform visual, dimensional, and MTC verification upon arrival of replacement pipes at laydown yard.",
+    "relatedDocumentType": "Quality Record",
+    "relatedDocumentId": "ncr-1",
+    "relatedDocumentNumber": "APX-KSP-03-QAQC-NCR-0014",
+    "assignedTo": "Eng. Sarah Al-Ghamdi",
+    "priority": "High",
+    "startDate": "2026-10-12",
+    "dueDate": "2026-10-16",
+    "status": "To Do",
+    "checklist": [
+      {
+        "id": "chk-4",
+        "text": "Verify 60m pipe bevel caps and thickness",
+        "done": false
+      },
+      {
+        "id": "chk-5",
+        "text": "Check mill test certificate heat numbers",
+        "done": false
+      },
+      {
+        "id": "chk-6",
+        "text": "Sign off NCR closure with consultant",
+        "done": false
+      }
+    ],
+    "createdAt": "2026-10-10T14:00:00Z",
+    "updatedAt": "2026-10-10T14:00:00Z"
+  }
+]

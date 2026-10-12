@@ -1,0 +1,19 @@
+[
+  {
+    "id": "si-1",
+    "projectId": "prj-ksp-01",
+    "instructionNumber": "APX-KSP-03-ENG-SI-0019",
+    "instructionType": "Engineer's Instruction (EI)",
+    "originator": "Eng. Tariq Al-Mansoor (Dar Al-Handasah)",
+    "dateReceived": "2026-09-29",
+    "description": "Upgrade firefighting isolation valves in museum display galleria from manual OS&Y gate valves to supervisory butterfly valves connected to addressable fire alarm system.",
+    "reasonForChange": "Civil Defense updated museum life safety directive 2026.",
+    "contractClauseRef": "Clause 13.1 (Right to Vary)",
+    "potentialCostImpact": 145000,
+    "potentialTimeImpactDays": 14,
+    "responsibleDept": "MEP Firefighting & Commercial Dept",
+    "status": "Instructed",
+    "createdAt": "2026-09-29T11:00:00Z",
+    "updatedAt": "2026-09-30T10:00:00Z"
+  }
+]

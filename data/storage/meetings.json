@@ -1,0 +1,67 @@
+[
+  {
+    "id": "mtg-1",
+    "projectId": "prj-ksp-01",
+    "meetingNumber": "APX-KSP-03-MOM-MEP-0026",
+    "meetingType": "Technical Coordination",
+    "title": "Weekly Technical Coordination & BIM Clash Resolution Meeting #26",
+    "dateTime": "2026-10-08T10:00:00",
+    "location": "Site Project Office - Main Conference Hall & MS Teams",
+    "attendees": [
+      {
+        "name": "Eng. Aly Ketkat",
+        "role": "Document Control Manager",
+        "company": "APEX DC",
+        "present": true
+      },
+      {
+        "name": "Eng. Tariq Al-Mansoor",
+        "role": "Supervising Consultant",
+        "company": "Dar Al-Handasah",
+        "present": true
+      },
+      {
+        "name": "Eng. Hisham Al-Husseini",
+        "role": "MEP Construction Manager",
+        "company": "APEX",
+        "present": true
+      },
+      {
+        "name": "Eng. Sarah Al-Ghamdi",
+        "role": "QA/QC Manager",
+        "company": "APEX",
+        "present": true
+      }
+    ],
+    "agenda": "1. Review of overdue technical submittals\n2. Chiller plant seismic sleeper approvals\n3. Outstanding action items from Meeting #25\n4. Hydrostatic pressure testing schedule.",
+    "discussionPoints": "Consultant confirmed review of Chiller Shop Drawing P02 is approved with notes (Code B). Contractor to expedite electrical transformer submittal.",
+    "decisions": "1. Contractor to submit revised pipe sleeve shop drawing incorporating 650mm offset by 14-Oct-2026.\n2. Witnessing of chiller plant hydrostatic test scheduled for 11-Oct-2026.",
+    "actionItems": [
+      {
+        "id": "act-1",
+        "meetingId": "mtg-1",
+        "projectId": "prj-ksp-01",
+        "itemNumber": "M26-ACT-01",
+        "description": "Submit updated shop drawing for shear wall penetrations at Energy Center B3.",
+        "assignedTo": "Eng. Hisham Al-Husseini",
+        "dueDate": "2026-10-14",
+        "status": "In Progress"
+      },
+      {
+        "id": "act-2",
+        "meetingId": "mtg-1",
+        "projectId": "prj-ksp-01",
+        "itemNumber": "M26-ACT-02",
+        "description": "Close out quarantined piping NCR-0014 upon delivery of replacement consignment.",
+        "assignedTo": "Eng. Sarah Al-Ghamdi",
+        "dueDate": "2026-10-18",
+        "status": "Open",
+        "carriedFromMeetingNumber": "APX-KSP-03-MOM-MEP-0025"
+      }
+    ],
+    "minutesPreparedBy": "Eng. Aly Ketkat",
+    "status": "Minutes Issued",
+    "createdAt": "2026-10-08T15:00:00Z",
+    "updatedAt": "2026-10-09T09:00:00Z"
+  }
+]

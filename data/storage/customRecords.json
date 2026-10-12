@@ -1,0 +1,36 @@
+[
+  {
+    "moduleId": "mod-204e88e9",
+    "projectId": "prj-ksp-01",
+    "recordNumber": "APX-KSP-03-HPT-6027",
+    "status": "CERTIFIED",
+    "data": {
+      "feederTag": "FDR-SUB01-TR01",
+      "leakageCurrentMa": 0.45
+    },
+    "createdBy": "Eng. Aly Ketkat",
+    "id": "crec-3488ec65",
+    "createdAt": "2026-10-12T18:59:16.027Z",
+    "updatedAt": "2026-10-12T18:59:16.027Z"
+  },
+  {
+    "id": "crec-1",
+    "moduleId": "mod-megger-01",
+    "projectId": "prj-ksp-01",
+    "recordNumber": "APX-KSP-03-MEG-0001",
+    "status": "PASSED",
+    "data": {
+      "feederRef": "FDR-EC-CHW-PUMP-01",
+      "cableSize": "3x240 mm² + 120 mm² Cu/XLPE/AWA/LSOH",
+      "voltageRating": "0.6/1.0 kV",
+      "testVoltage": "1000 V DC",
+      "insulationResistance": "Phase-Phase > 250 GΩ, Phase-Earth > 200 GΩ",
+      "testDate": "2026-10-09",
+      "calibratedTesterRef": "Megger MIT525 (Calib Cert: CAL-2026-9081)",
+      "witnessedBy": "Eng. Tariq Al-Mansoor (Dar Al-Handasah)"
+    },
+    "createdBy": "Eng. Aly Ketkat",
+    "createdAt": "2026-10-09T14:00:00Z",
+    "updatedAt": "2026-10-09T15:30:00Z"
+  }
+]

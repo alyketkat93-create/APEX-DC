@@ -1,0 +1,260 @@
+[
+  {
+    "id": "mod-megger-01",
+    "key": "cable-megger-test",
+    "name": "Cable Megger & Insulation Test Register",
+    "nameAr": "سجل اختبار عزل الكابلات والميجر",
+    "icon": "Zap",
+    "category": "MEP Electrical QA/QC",
+    "recordType": "Electrical Inspection",
+    "numberingPrefix": "MEG",
+    "workflowStatuses": [
+      {
+        "code": "DRAFT",
+        "label": "Draft",
+        "labelAr": "مسودة",
+        "color": "gray",
+        "isClosed": false
+      },
+      {
+        "code": "TESTED",
+        "label": "Tested On-Site",
+        "labelAr": "تم الفحص بالموقع",
+        "color": "blue",
+        "isClosed": false
+      },
+      {
+        "code": "PASSED",
+        "label": "Passed & Certified",
+        "labelAr": "مجتاز ومعتمد",
+        "color": "green",
+        "isClosed": true
+      },
+      {
+        "code": "FAILED",
+        "label": "Failed (Breakdown)",
+        "labelAr": "فشل (انهيار عزل)",
+        "color": "red",
+        "isClosed": false
+      }
+    ],
+    "fields": [
+      {
+        "id": "f1",
+        "name": "feederRef",
+        "label": "Feeder / Cable Tag",
+        "labelAr": "رقم الفيدر / الكابل",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. FDR-EC-MCC-01"
+      },
+      {
+        "id": "f2",
+        "name": "cableSize",
+        "label": "Cable Size & Type",
+        "labelAr": "مقاس ونوع الكابل",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. 4x185 mm² Cu/XLPE/SWA/PVC"
+      },
+      {
+        "id": "f3",
+        "name": "voltageRating",
+        "label": "Voltage Rating (kV)",
+        "labelAr": "جهد الكابل",
+        "type": "select",
+        "required": true,
+        "options": [
+          "0.6/1.0 kV",
+          "3.3 kV",
+          "11 kV",
+          "13.8 kV",
+          "33 kV"
+        ]
+      },
+      {
+        "id": "f4",
+        "name": "testVoltage",
+        "label": "Applied Test Voltage",
+        "labelAr": "جهد الاختبار المطبق",
+        "type": "select",
+        "required": true,
+        "options": [
+          "1000 V DC",
+          "2500 V DC",
+          "5000 V DC"
+        ]
+      },
+      {
+        "id": "f5",
+        "name": "insulationResistance",
+        "label": "Measured Insulation (GΩ / MΩ)",
+        "labelAr": "مقاومة العزل المقاسة",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. > 100 GΩ"
+      },
+      {
+        "id": "f6",
+        "name": "testDate",
+        "label": "Test Execution Date",
+        "labelAr": "تاريخ الفحص",
+        "type": "date",
+        "required": true
+      },
+      {
+        "id": "f7",
+        "name": "calibratedTesterRef",
+        "label": "Megger Serial & Calib Cert",
+        "labelAr": "رقم جهاز الميجر وشهادة المعايرة",
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "f8",
+        "name": "witnessedBy",
+        "label": "Witnessed By (Consultant)",
+        "labelAr": "بحضور المهندس المشرف",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "active": true,
+    "createdAt": "2026-09-01T08:00:00Z",
+    "updatedAt": "2026-10-12T10:00:00Z"
+  },
+  {
+    "id": "mod-chiller-tab-02",
+    "key": "chiller-commissioning",
+    "name": "Chiller Commissioning & TAB Register",
+    "nameAr": "سجل تشغيل وضبط الشيلرات وتوزيع الهواء (TAB)",
+    "icon": "Wind",
+    "category": "MEP HVAC Commissioning",
+    "recordType": "Commissioning Verification",
+    "numberingPrefix": "TAB",
+    "workflowStatuses": [
+      {
+        "code": "DRAFT",
+        "label": "Draft Verification",
+        "labelAr": "مسودة فحص",
+        "color": "gray",
+        "isClosed": false
+      },
+      {
+        "code": "TAB_ACTIVE",
+        "label": "Balancing in Progress",
+        "labelAr": "الضبط والاتزان جاري",
+        "color": "amber",
+        "isClosed": false
+      },
+      {
+        "code": "COMMISSIONED",
+        "label": "Commissioned & Accepted",
+        "labelAr": "تم التشغيل والاعتماد",
+        "color": "emerald",
+        "isClosed": true
+      }
+    ],
+    "fields": [
+      {
+        "id": "f10",
+        "name": "chillerTag",
+        "label": "Chiller Tag",
+        "labelAr": "رمز الشيلر",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. CH-01"
+      },
+      {
+        "id": "f11",
+        "name": "enteringChwTemp",
+        "label": "Entering Water Temp (°C)",
+        "labelAr": "حرارة الماء الداخل (°م)",
+        "type": "number",
+        "required": true
+      },
+      {
+        "id": "f12",
+        "name": "leavingChwTemp",
+        "label": "Leaving Water Temp (°C)",
+        "labelAr": "حرارة الماء الخارج (°م)",
+        "type": "number",
+        "required": true
+      },
+      {
+        "id": "f13",
+        "name": "flowRateGpm",
+        "label": "Design vs Actual Flow (GPM)",
+        "labelAr": "معدل التدفق (GPM)",
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "f14",
+        "name": "fullLoadKw",
+        "label": "Electrical Power Draw (kW)",
+        "labelAr": "القدرة الكهربائية المستهلكة (كيلوواط)",
+        "type": "number",
+        "required": true
+      },
+      {
+        "id": "f15",
+        "name": "commissioningDate",
+        "label": "Commissioning Date",
+        "labelAr": "تاريخ التشغيل والضبط",
+        "type": "date",
+        "required": true
+      }
+    ],
+    "active": true,
+    "createdAt": "2026-09-05T09:00:00Z",
+    "updatedAt": "2026-10-12T10:00:00Z"
+  },
+  {
+    "key": "custom-hpt-56025",
+    "name": "High Potential (Hi-Pot) Cable Test Register",
+    "nameAr": "سجل اختبار الجهد العالي للكابلات",
+    "icon": "Zap",
+    "category": "MEP Electrical QA/QC",
+    "recordType": "HV Test",
+    "numberingPrefix": "HPT",
+    "workflowStatuses": [
+      {
+        "code": "DRAFT",
+        "label": "Draft",
+        "labelAr": "مسودة",
+        "color": "gray",
+        "isClosed": false
+      },
+      {
+        "code": "CERTIFIED",
+        "label": "Certified",
+        "labelAr": "معتمد",
+        "color": "green",
+        "isClosed": true
+      }
+    ],
+    "fields": [
+      {
+        "id": "h1",
+        "name": "feederTag",
+        "label": "Feeder Tag",
+        "labelAr": "رقم الفيدر",
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "h2",
+        "name": "leakageCurrentMa",
+        "label": "Leakage Current (mA)",
+        "labelAr": "تيار التسريب",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "active": true,
+    "id": "mod-204e88e9",
+    "createdAt": "2026-10-12T18:59:16.025Z",
+    "updatedAt": "2026-10-12T18:59:16.025Z"
+  }
+]

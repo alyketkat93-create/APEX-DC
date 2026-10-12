@@ -1,0 +1,22 @@
+[
+  {
+    "id": "ncr-1",
+    "projectId": "prj-ksp-01",
+    "recordType": "NCR (Non-Conformance Report)",
+    "recordNumber": "APX-KSP-03-QAQC-NCR-0014",
+    "title": "Damaged Carbon Steel Firefighting Pipes Delivered with Surface Corrosion & Bevel Deformity",
+    "discipline": "MEP-Firefighting",
+    "location": "Laydown Yard 2, Warehouse 4B",
+    "responsibleParty": "Al-Jazira Industrial Supplies & Logistics",
+    "issueDate": "2026-10-08",
+    "dueDate": "2026-10-18",
+    "severity": "Major",
+    "description": "During MIR-0035 inspection, 60 meters of ASTM A53 150mm dia pipes exhibited heavy surface oxidation and crushed pipe ends exceeding ASME B36.10 tolerances.",
+    "rootCause": "Improper strapping on flatbed transport trailer and failure of weather-protective tarp during coastal transit.",
+    "correctiveAction": "Defective pipes separated and moved to quarantined red zone. Supplier issued debit note and replacement dispatch scheduled for 15-Oct-2026.",
+    "preventiveAction": "Supplier QA logistics protocol updated to require heavy-duty end protectors and closed-curtain trucks for future consignments.",
+    "status": "Corrective Action Submitted",
+    "createdAt": "2026-10-08T16:00:00Z",
+    "updatedAt": "2026-10-10T11:00:00Z"
+  }
+]

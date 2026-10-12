@@ -1,0 +1,28 @@
+[
+  {
+    "id": "notif-1",
+    "title": "Code B Approval Received",
+    "titleAr": "تم استلام اعتماد كود ب (معتمد بملاحظات)",
+    "message": "Shop Drawing APX-KSP-03-MEP-HVAC-0042-P02 approved with comments by Consultant.",
+    "messageAr": "تم اعتماد مخطط ورشة التبريد بملاحظات من قبل الاستشاري الهندسي.",
+    "type": "success",
+    "projectId": "prj-ksp-01",
+    "documentType": "Drawing",
+    "documentNumber": "APX-KSP-03-MEP-HVAC-0042-P02",
+    "isRead": false,
+    "createdAt": "2026-10-09T14:05:00Z"
+  },
+  {
+    "id": "notif-2",
+    "title": "Consultant Review Overdue Alert",
+    "titleAr": "تنبيه: تجاوز موعد المراجعة للاستشاري",
+    "message": "Firefighting Sprinkler Drawing APX-KSP-03-MEP-FF-0088-P01 review is due in 3 days.",
+    "messageAr": "مخطط شبكة الإطفاء مستحق الرد خلال 3 أيام.",
+    "type": "warning",
+    "projectId": "prj-ksp-01",
+    "documentType": "Drawing",
+    "documentNumber": "APX-KSP-03-MEP-FF-0088-P01",
+    "isRead": false,
+    "createdAt": "2026-10-12T08:00:00Z"
+  }
+]

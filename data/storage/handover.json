@@ -1,0 +1,43 @@
+[
+  {
+    "id": "ho-1",
+    "projectId": "prj-ksp-01",
+    "itemNumber": "APX-KSP-03-HO-ASB-0004",
+    "category": "As-Built Drawing",
+    "title": "Substation #01 — 13.8kV Medium Voltage Switchgear & Transformer Room As-Built Layout",
+    "discipline": "MEP-Electrical",
+    "system": "Medium Voltage Power",
+    "buildingZone": "Substation Building 01",
+    "originalDocRef": "APX-KSP-03-MEP-ELE-0012-P04",
+    "latestRevision": "00",
+    "siteVerificationStatus": "Verified on Site",
+    "qaQcVerificationStatus": "Verified",
+    "consultantReviewStatus": "Approved",
+    "approvalStatus": "Approved",
+    "handoverPackageRef": "PKG-HO-ELEC-SUB01",
+    "completionPercent": 100,
+    "notes": "Verified against SEC energization requirements.",
+    "createdAt": "2026-09-15T08:00:00Z",
+    "updatedAt": "2026-10-01T10:00:00Z"
+  },
+  {
+    "id": "ho-2",
+    "projectId": "prj-ksp-01",
+    "itemNumber": "APX-KSP-03-HO-OM-0012",
+    "category": "O&M Manual",
+    "title": "Centrifugal Chiller Plant Operation and Maintenance Comprehensive Manual (Vols 1 & 2)",
+    "discipline": "MEP-HVAC",
+    "system": "Central Chiller Plant",
+    "buildingZone": "Energy Center B3",
+    "latestRevision": "P01",
+    "siteVerificationStatus": "Pending",
+    "qaQcVerificationStatus": "Verified",
+    "consultantReviewStatus": "Comments Pending",
+    "approvalStatus": "Pending",
+    "handoverPackageRef": "PKG-HO-HVAC-CHW",
+    "completionPercent": 75,
+    "notes": "Manufacturer emergency procedures included; awaiting supplier factory training certificates.",
+    "createdAt": "2026-09-20T10:00:00Z",
+    "updatedAt": "2026-10-05T12:00:00Z"
+  }
+]

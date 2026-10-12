@@ -1,0 +1,25 @@
+[
+  {
+    "id": "rfi-1",
+    "projectId": "prj-ksp-01",
+    "rfiNumber": "APX-KSP-03-MEP-RFI-0014",
+    "subject": "Structural Penetration Sleeves Clash with Post-Tensioned Tendons at Shear Wall SW-04",
+    "technicalQuestion": "Drawing S-204 indicates vertical post-tensioned tendon anchorages exactly at the level required for the 450mm chilled water supply and return sleeves. Can the risers be offset by 650mm to Grid D/7.5 without impacting the fire-rated shaft integrity?",
+    "discipline": "MEP-HVAC",
+    "location": "Energy Center B3, Shear Wall SW-04",
+    "drawingRefs": "APX-KSP-03-MEP-HVAC-0042-P01 & STR-SW-204-REV02",
+    "specRefs": "03300 Cast-in-Place Concrete & 15050 Mechanical",
+    "originator": "Eng. Hisham Al-Husseini (MEP CM)",
+    "recipient": "Eng. Tariq Al-Mansoor (Dar Al-Handasah Structural Lead)",
+    "dateRaised": "2026-09-22",
+    "requiredResponseDate": "2026-10-06",
+    "actualResponseDate": "2026-10-03",
+    "priority": "High",
+    "potentialCostImpact": false,
+    "potentialScheduleImpact": true,
+    "consultantResponse": "Offset of 650mm toward Grid D/7.5 is structurally acceptable provided 2-hour intumescent collar and rockwool firestopping is maintained in accordance with UL System W-L-1054.",
+    "status": "Answered",
+    "createdAt": "2026-09-22T08:00:00Z",
+    "updatedAt": "2026-10-03T16:00:00Z"
+  }
+]

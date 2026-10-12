@@ -1,0 +1,72 @@
+[
+  {
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-T6023",
+    "category": "Shop Drawings",
+    "sender": "APEX DC",
+    "recipient": "Dar Al-Handasah",
+    "submissionDate": "2026-10-10",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "DWG-001",
+        "docTitle": "HVAC Duct",
+        "revision": "P01",
+        "docType": "Shop Drawing"
+      },
+      {
+        "docNumber": "DWG-002",
+        "docTitle": "Piping Header",
+        "revision": "P02",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Review within 14 days",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "acknowledgedBy": "Consultant DC",
+    "status": "Acknowledged",
+    "id": "trn-051c74f8",
+    "createdAt": "2026-10-12T18:59:16.024Z",
+    "updatedAt": "2026-10-12T18:59:16.024Z"
+  },
+  {
+    "id": "trn-1",
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-0018",
+    "category": "Shop Drawings",
+    "sender": "APEX Engineering & Construction JV",
+    "recipient": "Dar Al-Handasah Consultants",
+    "submissionDate": "2026-10-03",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-0042-P02",
+        "docTitle": "Central Chiller Plant — Chilled Water Primary Piping & Header Layout",
+        "revision": "P02",
+        "docType": "Shop Drawing",
+        "copies": 1,
+        "format": "PDF",
+        "notes": "Revised as per consultant review Code C comments."
+      },
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-0043-P01",
+        "docTitle": "Central Chiller Plant — Condenser Water Loop & Cooling Tower Feeds",
+        "revision": "P01",
+        "docType": "Shop Drawing",
+        "copies": 1,
+        "format": "PDF",
+        "notes": "Initial formal submission."
+      }
+    ],
+    "requiredAction": "Review and return with Code approval within 14 contractual calendar days.",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "acknowledgedBy": "Nawal Al-Harbi (Dar DC Desk)",
+    "acknowledgedDate": "2026-10-03T14:10:00Z",
+    "remarks": "Delivered digitally via APEX DC with formal signed transmittal slip attached.",
+    "status": "Acknowledged",
+    "createdAt": "2026-10-03T11:00:00Z",
+    "updatedAt": "2026-10-03T14:10:00Z"
+  }
+]
