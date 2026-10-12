@@ -31,6 +31,7 @@ export function QualityView() {
   const [newType, setNewType] = useState<any>('NCR (Non-Conformance Report)');
   const [newDiscipline, setNewDiscipline] = useState<Discipline>('MEP-Firefighting');
   const [newLocation, setNewLocation] = useState('Laydown Yard 2, Warehouse 4B');
+  const [isCustomLoc, setIsCustomLoc] = useState(false);
   const [newParty, setNewParty] = useState('Al-Jazira Industrial Supplies');
   const [newSeverity, setNewSeverity] = useState<'Minor' | 'Major' | 'Critical'>('Major');
   const [newDesc, setNewDesc] = useState('');
@@ -380,14 +381,44 @@ export function QualityView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Location on Site</label>
-                  <input
-                    type="text"
-                    value={newLocation}
-                    onChange={(e) => setNewLocation(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs"
-                    required
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Location on Site</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomLoc(!isCustomLoc)}
+                      className="text-[10px] text-red-700 hover:underline font-semibold"
+                    >
+                      {isCustomLoc ? (language === 'ar' ? 'من المباني' : 'From Buildings') : (language === 'ar' ? '+ إدخال حر' : '+ Free Text')}
+                    </button>
+                  </div>
+                  {isCustomLoc ? (
+                    <input
+                      type="text"
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      placeholder="e.g. Laydown Yard 2, Warehouse 4B"
+                      className="w-full border border-slate-300 rounded p-2 text-xs"
+                      required
+                    />
+                  ) : (
+                    <select
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-medium"
+                      required
+                    >
+                      {currentProject?.buildings && currentProject.buildings.length > 0 ? (
+                        currentProject.buildings.map((b) => (
+                          <option key={b.id} value={`${b.code} - ${b.name}`}>
+                            {b.code} — {language === 'ar' ? (b.nameAr || b.name) : b.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="Main Site Zone">Main Site Zone</option>
+                      )}
+                      <option value="Laydown Yard & Warehouse">Laydown Yard & Warehouse</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Responsible Party</label>

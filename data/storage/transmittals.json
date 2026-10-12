@@ -1,6 +1,64 @@
 [
   {
     "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-T7559",
+    "category": "Shop Drawings",
+    "sender": "APEX DC",
+    "recipient": "Dar Al-Handasah",
+    "submissionDate": "2026-10-10",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "DWG-001",
+        "docTitle": "HVAC Duct",
+        "revision": "P01",
+        "docType": "Shop Drawing"
+      },
+      {
+        "docNumber": "DWG-002",
+        "docTitle": "Piping Header",
+        "revision": "P02",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Review within 14 days",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "acknowledgedBy": "Consultant DC",
+    "status": "Acknowledged",
+    "id": "trn-dc9b5a49",
+    "createdAt": "2026-10-12T19:25:57.559Z",
+    "updatedAt": "2026-10-12T19:25:57.559Z"
+  },
+  {
+    "projectId": "prj-e1a743e7",
+    "transmittalNumber": "001-DC-TR-0001",
+    "category": "Shop Drawings",
+    "sender": "APEX Engineering & Construction JV",
+    "recipient": "Dar Al-Handasah Consultants",
+    "submissionDate": "2026-10-12",
+    "purpose": "For Approval",
+    "requiredAction": "Review and return with approval code within 14 calendar days.",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": false,
+    "status": "Issued / Dispatched",
+    "documentList": [
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-0042-P02",
+        "docTitle": "Central Chiller Plant — Piping Layout",
+        "revision": "P02",
+        "docType": "Shop Drawing",
+        "copies": 1,
+        "format": "PDF",
+        "notes": "Enclosed with complete submittal package"
+      }
+    ],
+    "id": "trn-88f1e9eb",
+    "createdAt": "2026-10-12T19:07:03.947Z",
+    "updatedAt": "2026-10-12T19:07:03.947Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
     "transmittalNumber": "APX-KSP-03-DC-TR-T6023",
     "category": "Shop Drawings",
     "sender": "APEX DC",

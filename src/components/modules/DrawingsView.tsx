@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import { 
   Compass, Plus, Search, Filter, Download, Upload, 
   Printer, Eye, History, FileText, CheckCircle2, AlertCircle, 
-  Clock, Shield, ArrowUpDown, ChevronRight, Layers, FileSpreadsheet
+  Clock, Shield, ArrowUpDown, ChevronRight, Layers, FileSpreadsheet, Building2
 } from 'lucide-react';
 import { DocumentViewerModal } from '@/components/common/DocumentViewerModal';
 import { PrintableDocumentModal } from '@/components/common/PrintableDocumentModal';
@@ -23,6 +23,8 @@ export function DrawingsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [disciplineFilter, setDisciplineFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [zoneFilter, setZoneFilter] = useState<string>('ALL');
+  const [floorFilter, setFloorFilter] = useState<string>('ALL');
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -37,8 +39,10 @@ export function DrawingsView() {
   const [newTitle, setNewTitle] = useState('');
   const [newDiscipline, setNewDiscipline] = useState<Discipline>('MEP-HVAC');
   const [newSystem, setNewSystem] = useState('Chilled Water Plant');
-  const [newZone, setNewZone] = useState('Energy Center B3');
-  const [newFloor, setNewFloor] = useState('Basement Level 3');
+  const [newZone, setNewZone] = useState('');
+  const [newFloor, setNewFloor] = useState('');
+  const [isCustomZone, setIsCustomZone] = useState(false);
+  const [isCustomFloor, setIsCustomFloor] = useState(false);
   const [newType, setNewType] = useState<any>('Shop Drawing');
   const [generatedDocNum, setGeneratedDocNum] = useState('');
 
@@ -91,6 +95,12 @@ export function DrawingsView() {
 
   const handleOpenCreateModal = () => {
     generateNumber(newDiscipline);
+    const initialZone = currentProject?.buildings?.[0]?.name || 'Energy Center B3';
+    setNewZone(initialZone);
+    const initialFloor = currentProject?.buildings?.[0]?.floors?.[0] || currentProject?.floors?.[0] || 'Basement Level 3';
+    setNewFloor(initialFloor);
+    setIsCustomZone(false);
+    setIsCustomFloor(false);
     setCreateModalOpen(true);
   };
 
@@ -197,10 +207,14 @@ export function DrawingsView() {
     const matchSearch = searchQuery === '' || 
       d.drawingNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.system.toLowerCase().includes(searchQuery.toLowerCase());
+      d.system.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.buildingZone && d.buildingZone.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (d.floorLevel && d.floorLevel.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchDiscipline = disciplineFilter === 'ALL' || d.discipline === disciplineFilter;
     const matchStatus = statusFilter === 'ALL' || d.reviewStatus === statusFilter;
-    return matchSearch && matchDiscipline && matchStatus;
+    const matchZone = zoneFilter === 'ALL' || d.buildingZone === zoneFilter || d.buildingZone?.toLowerCase().includes(zoneFilter.toLowerCase());
+    const matchFloor = floorFilter === 'ALL' || d.floorLevel === floorFilter || d.floorLevel?.toLowerCase().includes(floorFilter.toLowerCase());
+    return matchSearch && matchDiscipline && matchStatus && matchZone && matchFloor;
   });
 
   return (
@@ -225,6 +239,7 @@ export function DrawingsView() {
         {/* Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           <button
+            export-btn="true"
             onClick={exportToExcel}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition shadow-xs"
             title="Export Register to Excel"
@@ -253,7 +268,7 @@ export function DrawingsView() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-3 text-xs">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-2.5 text-xs">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -265,6 +280,32 @@ export function DrawingsView() {
             className="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-xs rounded-lg pl-8 pr-3 py-2 border border-slate-200 focus:outline-none focus:border-amber-500"
           />
         </div>
+
+        {/* Building / Zone Filter */}
+        <select
+          value={zoneFilter}
+          onChange={(e) => setZoneFilter(e.target.value)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium focus:outline-none focus:border-amber-500"
+        >
+          <option value="ALL">{language === 'ar' ? 'جميع المباني والمناطق' : 'All Buildings / Zones'}</option>
+          {currentProject?.buildings?.map(b => (
+            <option key={b.id} value={b.name}>
+              {b.code} — {language === 'ar' ? (b.nameAr || b.name) : b.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Floor / Level Filter */}
+        <select
+          value={floorFilter}
+          onChange={(e) => setFloorFilter(e.target.value)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium focus:outline-none focus:border-amber-500"
+        >
+          <option value="ALL">{language === 'ar' ? 'جميع الأدوار والمستويات' : 'All Floors / Levels'}</option>
+          {currentProject?.floors?.map(f => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
 
         {/* Discipline Filter */}
         <select
@@ -343,8 +384,17 @@ export function DrawingsView() {
                     </td>
 
                     {/* Zone / Level */}
-                    <td className="py-3 px-3 whitespace-nowrap text-slate-600 text-[11px]">
-                      {d.buildingZone} / {d.floorLevel}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-semibold text-slate-800 text-[11px] flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+                          <span className="truncate max-w-[140px]">{d.buildingZone}</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                          <Layers className="w-3 h-3 text-purple-600 shrink-0" />
+                          <span className="truncate max-w-[140px]">{d.floorLevel}</span>
+                        </span>
+                      </div>
                     </td>
 
                     {/* Current Revision Badge */}
@@ -502,22 +552,92 @@ export function DrawingsView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Building / Zone</label>
-                  <input
-                    type="text"
-                    value={newZone}
-                    onChange={(e) => setNewZone(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs"
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Building / Zone</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomZone(!isCustomZone)}
+                      className="text-[10px] text-amber-700 hover:underline font-semibold"
+                    >
+                      {isCustomZone ? (language === 'ar' ? 'من القائمة' : 'From List') : (language === 'ar' ? '+ إدخال يدوي' : '+ Custom Zone')}
+                    </button>
+                  </div>
+                  {isCustomZone ? (
+                    <input
+                      type="text"
+                      value={newZone}
+                      onChange={(e) => setNewZone(e.target.value)}
+                      placeholder="e.g. Energy Center B3"
+                      className="w-full border border-slate-300 rounded p-2 text-xs"
+                      required
+                    />
+                  ) : (
+                    <select
+                      value={newZone}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewZone(val);
+                        const bld = currentProject?.buildings?.find(b => b.name === val || b.code === val);
+                        if (bld?.floors && bld.floors.length > 0) {
+                          setNewFloor(bld.floors[0]);
+                        }
+                      }}
+                      className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-medium"
+                      required
+                    >
+                      {currentProject?.buildings && currentProject.buildings.length > 0 ? (
+                        currentProject.buildings.map((b) => (
+                          <option key={b.id} value={b.name}>
+                            {b.code} — {language === 'ar' ? (b.nameAr || b.name) : b.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="Main Complex Zone">Main Complex Zone</option>
+                      )}
+                    </select>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Floor / Level</label>
-                  <input
-                    type="text"
-                    value={newFloor}
-                    onChange={(e) => setNewFloor(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs"
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Floor / Level</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomFloor(!isCustomFloor)}
+                      className="text-[10px] text-amber-700 hover:underline font-semibold"
+                    >
+                      {isCustomFloor ? (language === 'ar' ? 'من القائمة' : 'From List') : (language === 'ar' ? '+ إدخال يدوي' : '+ Custom Floor')}
+                    </button>
+                  </div>
+                  {isCustomFloor ? (
+                    <input
+                      type="text"
+                      value={newFloor}
+                      onChange={(e) => setNewFloor(e.target.value)}
+                      placeholder="e.g. Basement Level 3"
+                      className="w-full border border-slate-300 rounded p-2 text-xs"
+                      required
+                    />
+                  ) : (
+                    <select
+                      value={newFloor}
+                      onChange={(e) => setNewFloor(e.target.value)}
+                      className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-medium"
+                      required
+                    >
+                      {(() => {
+                        const bld = currentProject?.buildings?.find(b => b.name === newZone || b.code === newZone);
+                        const floorsList = bld?.floors && bld.floors.length > 0
+                          ? bld.floors
+                          : (currentProject?.floors && currentProject.floors.length > 0
+                            ? currentProject.floors
+                            : ['Basement Level 1', 'Ground Floor', 'Level 1', 'Roof']);
+                        return floorsList.map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ));
+                      })()}
+                    </select>
+                  )}
                 </div>
               </div>
 

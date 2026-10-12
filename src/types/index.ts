@@ -52,6 +52,15 @@ export interface User {
   active: boolean;
 }
 
+export interface BuildingZone {
+  id: string;
+  code: string;
+  name: string;
+  nameAr?: string;
+  description?: string;
+  floors?: string[];
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -78,6 +87,8 @@ export interface Project {
   logo?: string;
   numberingFormat: string;
   reviewDurationDays: number;
+  buildings?: BuildingZone[];
+  floors?: string[];
   createdAt: string;
   updatedAt: string;
 }

@@ -84,6 +84,37 @@ export const initialProjects: Project[] = [
     description: 'Turnkey MEP construction, HVAC central chiller plant, firefighting standpipe & sprinklers, 13.8kV substations, ELV, and architectural fit-out for 145,000 m² cultural district.',
     numberingFormat: '{PROJECT}-{DISC}-{TYPE}-{SEQ:4}-{REV}',
     reviewDurationDays: 14,
+    buildings: [
+      {
+        id: 'bld-ksp-01',
+        code: 'EC-B3',
+        name: 'Energy Center & Central Utilities',
+        nameAr: 'مركز الطاقة والمرافق المركزية',
+        floors: ['Basement Level 3', 'Basement Level 2', 'Basement Level 1', 'Ground Floor', 'Roof']
+      },
+      {
+        id: 'bld-ksp-02',
+        code: 'BLD-01',
+        name: 'Main Cultural Theater & Opera Hall',
+        nameAr: 'مسرح المجمع الثقافي ودار الأوبرا',
+        floors: ['Basement Level 2', 'Basement Level 1', 'Ground Floor', 'Mezzanine', 'Level 1 - Balcony', 'Level 2', 'Roof']
+      },
+      {
+        id: 'bld-ksp-03',
+        code: 'BLD-02',
+        name: 'Museum of Contemporary Arts',
+        nameAr: 'متحف الفنون المعاصرة',
+        floors: ['Basement Level 1', 'Ground Floor', 'Level 1', 'Level 2', 'Level 3 - Sky Gallery', 'Roof']
+      },
+      {
+        id: 'bld-ksp-04',
+        code: 'PLZ-EXT',
+        name: 'Central Promenade & Landscaped Plaza',
+        nameAr: 'الممشى المركزي والساحات الخارجية',
+        floors: ['Ground Level', 'Sub-grade Utility Trench']
+      }
+    ],
+    floors: ['Basement Level 3', 'Basement Level 2', 'Basement Level 1', 'Ground Floor', 'Mezzanine', 'Level 1', 'Level 2', 'Level 3', 'Roof', 'Upper Roof'],
     createdAt: '2024-03-01T08:00:00Z',
     updatedAt: '2026-10-12T14:30:00Z',
   },
@@ -111,6 +142,37 @@ export const initialProjects: Project[] = [
     description: 'Ultra-luxury desert hotel consisting of 40 standalone villas, central oasis spa, geothermal heat pump integration, off-grid solar-microgrid distribution, and tertiary RO wastewater plant.',
     numberingFormat: '{PROJECT}-{DISC}-{TYPE}-{SEQ:4}-{REV}',
     reviewDurationDays: 10,
+    buildings: [
+      {
+        id: 'bld-rsd-01',
+        code: 'MOC',
+        name: 'Main Oasis Clubhouse & Reception',
+        nameAr: 'مبنى الواحة الرئيسي والاستقبال',
+        floors: ['Ground Floor', 'First Floor', 'Roof Terrace']
+      },
+      {
+        id: 'bld-rsd-02',
+        code: 'SPA-01',
+        name: 'Wellness Spa & Thermal Baths',
+        nameAr: 'سبا الاستجمام والحمامات الحرارية',
+        floors: ['Basement Level 1', 'Ground Floor', 'Roof']
+      },
+      {
+        id: 'bld-rsd-03',
+        code: 'VLA-ZONE-A',
+        name: 'Dunes Luxury Villas Cluster A (V01-V20)',
+        nameAr: 'مجموعة فلل الكثبان الفاخرة (أ)',
+        floors: ['Ground Floor', 'Mezzanine Suite', 'Roof Viewing Deck']
+      },
+      {
+        id: 'bld-rsd-04',
+        code: 'CUC',
+        name: 'Central Utility Complex & Solar RO Plant',
+        nameAr: 'مجمع المرافق المركزية ومحطة التحلية الشمسية',
+        floors: ['Basement Level 1', 'Ground Floor']
+      }
+    ],
+    floors: ['Basement Level 1', 'Ground Floor', 'Mezzanine', 'First Floor', 'Roof Terrace', 'Roof Viewing Deck'],
     createdAt: '2023-09-15T09:00:00Z',
     updatedAt: '2026-10-12T16:00:00Z',
   },
@@ -138,6 +200,30 @@ export const initialProjects: Project[] = [
     description: 'Underground station tunnel ventilation systems (TVS), fire life safety, NFPA 130 compliance, dual-redundant 33kV switchgear, traction substations, and SCADA automation.',
     numberingFormat: '{PROJECT}-{DISC}-{TYPE}-{SEQ:4}-{REV}',
     reviewDurationDays: 7,
+    buildings: [
+      {
+        id: 'bld-rml-01',
+        code: 'STN-4A1',
+        name: 'Station 4A1 Deep Underground Box',
+        nameAr: 'محطة 4A1 العميقة تحت الأرض',
+        floors: ['Track Level (B3)', 'Concourse Level (B2)', 'Plant Room Level (B1)', 'Street Concourse (L0)', 'Roof / Plaza']
+      },
+      {
+        id: 'bld-rml-02',
+        code: 'STN-4A2',
+        name: 'Station 4A2 Elevated Concourse',
+        nameAr: 'محطة 4A2 المرتفعة',
+        floors: ['Street Level (L0)', 'Concourse Level (L1)', 'Platform Level (L2)', 'Canopy Roof']
+      },
+      {
+        id: 'bld-rml-03',
+        code: 'DEPOT-01',
+        name: 'Maintenance Depot & Rail Yard',
+        nameAr: 'مستودع الصيانة وورش القطارات',
+        floors: ['Ground Floor', 'Mezzanine Offices', 'Roof']
+      }
+    ],
+    floors: ['Track Level (B3)', 'Concourse Level (B2)', 'Plant Room Level (B1)', 'Street Concourse (L0)', 'Concourse Level (L1)', 'Platform Level (L2)', 'Roof / Plaza'],
     createdAt: '2024-01-10T08:00:00Z',
     updatedAt: '2026-10-12T12:00:00Z',
   }

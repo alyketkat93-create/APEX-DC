@@ -36,6 +36,14 @@ export function ProjectHeader() {
               <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-navy-50 text-navy-800 border border-navy-100">
                 {currentProject.projectType}
               </span>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
+                <Building className="w-3 h-3 text-blue-600" />
+                <span>{currentProject.buildings?.length || 0} {language === 'ar' ? 'مباني' : 'Buildings'}</span>
+              </span>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 flex items-center gap-1">
+                <Layers className="w-3 h-3 text-purple-600" />
+                <span>{currentProject.floors?.length || 0} {language === 'ar' ? 'مستويات' : 'Levels'}</span>
+              </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-1">
@@ -105,6 +113,25 @@ export function ProjectHeader() {
             <div className="text-[10px] text-slate-500 uppercase font-semibold">Numbering Format</div>
             <div className="font-mono text-[11px] text-amber-700 truncate mt-0.5">{currentProject.numberingFormat}</div>
           </div>
+
+          {/* Configured Buildings & Floors Overview */}
+          {currentProject.buildings && currentProject.buildings.length > 0 && (
+            <div className="col-span-2 sm:col-span-3 lg:col-span-6 bg-slate-50 p-2.5 rounded border border-slate-200 mt-1">
+              <div className="text-[10px] text-slate-500 uppercase font-semibold mb-1 flex items-center gap-1">
+                <Building className="w-3 h-3 text-blue-600" />
+                <span>{language === 'ar' ? 'المباني والمناطق المهيأة في المشروع' : 'Configured Project Buildings & Zones'}:</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {currentProject.buildings.map((b) => (
+                  <span key={b.id} className="inline-flex items-center gap-1 text-[11px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-medium">
+                    <span className="font-mono font-bold text-[10px] bg-navy-900 text-amber-300 px-1 rounded">{b.code}</span>
+                    <span>{language === 'ar' ? (b.nameAr || b.name) : b.name}</span>
+                    <span className="text-[10px] text-slate-400">({b.floors?.length || currentProject.floors?.length || 0} lvls)</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

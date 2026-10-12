@@ -1,5 +1,19 @@
 [
   {
+    "moduleId": "mod-fc818fce",
+    "projectId": "prj-ksp-01",
+    "recordNumber": "APX-KSP-03-HPT-7562",
+    "status": "CERTIFIED",
+    "data": {
+      "feederTag": "FDR-SUB01-TR01",
+      "leakageCurrentMa": 0.45
+    },
+    "createdBy": "Eng. Aly Ketkat",
+    "id": "crec-07afc022",
+    "createdAt": "2026-10-12T19:25:57.562Z",
+    "updatedAt": "2026-10-12T19:25:57.562Z"
+  },
+  {
     "moduleId": "mod-204e88e9",
     "projectId": "prj-ksp-01",
     "recordNumber": "APX-KSP-03-HPT-6027",

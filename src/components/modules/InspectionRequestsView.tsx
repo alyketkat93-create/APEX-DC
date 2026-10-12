@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import { 
   ClipboardList, Plus, Search, Download, Upload, Printer, 
   Calendar, CheckCircle2, AlertTriangle, Link as LinkIcon, 
-  Clock, ShieldCheck, MapPin
+  Clock, ShieldCheck, MapPin, Building2, Layers
 } from 'lucide-react';
 import { PrintableDocumentModal } from '@/components/common/PrintableDocumentModal';
 
@@ -21,6 +21,8 @@ export function InspectionRequestsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [disciplineFilter, setDisciplineFilter] = useState('ALL');
   const [resultFilter, setResultFilter] = useState('ALL');
+  const [zoneFilter, setZoneFilter] = useState('ALL');
+  const [floorFilter, setFloorFilter] = useState('ALL');
   const [calendarView, setCalendarView] = useState(false);
 
   // Modals
@@ -32,8 +34,10 @@ export function InspectionRequestsView() {
   const [newType, setNewType] = useState('Piping Hydrostatic Pressure Testing');
   const [newDiscipline, setNewDiscipline] = useState<Discipline>('MEP-HVAC');
   const [newSystem, setNewSystem] = useState('Chilled Water Plant');
-  const [newZone, setNewZone] = useState('Energy Center B3');
-  const [newFloor, setNewFloor] = useState('Basement Level 3');
+  const [newZone, setNewZone] = useState('');
+  const [newFloor, setNewFloor] = useState('');
+  const [isCustomZone, setIsCustomZone] = useState(false);
+  const [isCustomFloor, setIsCustomFloor] = useState(false);
   const [newDesc, setNewDesc] = useState('');
   const [newDwgRef, setNewDwgRef] = useState('APX-KSP-03-MEP-HVAC-0042-P02');
   const [newDwgRev, setNewDwgRev] = useState('P02');
@@ -81,6 +85,12 @@ export function InspectionRequestsView() {
 
   const handleOpenCreateModal = () => {
     generateNumber(newDiscipline);
+    const initialZone = currentProject?.buildings?.[0]?.name || 'Energy Center B3';
+    setNewZone(initialZone);
+    const initialFloor = currentProject?.buildings?.[0]?.floors?.[0] || currentProject?.floors?.[0] || 'Basement Level 3';
+    setNewFloor(initialFloor);
+    setIsCustomZone(false);
+    setIsCustomFloor(false);
     setCreateModalOpen(true);
   };
 
@@ -150,10 +160,14 @@ export function InspectionRequestsView() {
     const matchSearch = searchQuery === '' || 
       i.irNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       i.inspectionType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      i.workDescription.toLowerCase().includes(searchQuery.toLowerCase());
+      i.workDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (i.buildingZone && i.buildingZone.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (i.floorLocation && i.floorLocation.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchDiscipline = disciplineFilter === 'ALL' || i.discipline === disciplineFilter;
     const matchResult = resultFilter === 'ALL' || i.result === resultFilter;
-    return matchSearch && matchDiscipline && matchResult;
+    const matchZone = zoneFilter === 'ALL' || i.buildingZone === zoneFilter || i.buildingZone?.toLowerCase().includes(zoneFilter.toLowerCase());
+    const matchFloor = floorFilter === 'ALL' || i.floorLocation === floorFilter || i.floorLocation?.toLowerCase().includes(floorFilter.toLowerCase());
+    return matchSearch && matchDiscipline && matchResult && matchZone && matchFloor;
   });
 
   return (
@@ -205,7 +219,7 @@ export function InspectionRequestsView() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-3 text-xs">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-2.5 text-xs">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
           <input
@@ -216,6 +230,32 @@ export function InspectionRequestsView() {
             className="w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-xs rounded-lg pl-8 pr-3 py-2 border border-slate-200 focus:outline-none focus:border-purple-500"
           />
         </div>
+
+        {/* Building / Zone Filter */}
+        <select
+          value={zoneFilter}
+          onChange={(e) => setZoneFilter(e.target.value)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium focus:outline-none focus:border-purple-500"
+        >
+          <option value="ALL">{language === 'ar' ? 'جميع المباني والمناطق' : 'All Buildings / Zones'}</option>
+          {currentProject?.buildings?.map(b => (
+            <option key={b.id} value={b.name}>
+              {b.code} — {language === 'ar' ? (b.nameAr || b.name) : b.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Floor / Level Filter */}
+        <select
+          value={floorFilter}
+          onChange={(e) => setFloorFilter(e.target.value)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium focus:outline-none focus:border-purple-500"
+        >
+          <option value="ALL">{language === 'ar' ? 'جميع الأدوار والمستويات' : 'All Floors / Levels'}</option>
+          {currentProject?.floors?.map(f => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
 
         <select
           value={disciplineFilter}
@@ -460,25 +500,104 @@ export function InspectionRequestsView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Building / Zone</label>
-                  <input
-                    type="text"
-                    value={newZone}
-                    onChange={(e) => setNewZone(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs"
-                    required
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Building / Zone</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomZone(!isCustomZone)}
+                      className="text-[10px] text-purple-700 hover:underline font-semibold"
+                    >
+                      {isCustomZone ? (language === 'ar' ? 'من القائمة' : 'From List') : (language === 'ar' ? '+ إدخال يدوي' : '+ Custom')}
+                    </button>
+                  </div>
+                  {isCustomZone ? (
+                    <input
+                      type="text"
+                      value={newZone}
+                      onChange={(e) => setNewZone(e.target.value)}
+                      placeholder="e.g. Energy Center B3"
+                      className="w-full border border-slate-300 rounded p-2 text-xs"
+                      required
+                    />
+                  ) : (
+                    <select
+                      value={newZone}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewZone(val);
+                        const bld = currentProject?.buildings?.find(b => b.name === val || b.code === val);
+                        if (bld?.floors && bld.floors.length > 0) {
+                          setNewFloor(bld.floors[0]);
+                        }
+                      }}
+                      className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-medium"
+                      required
+                    >
+                      {currentProject?.buildings && currentProject.buildings.length > 0 ? (
+                        currentProject.buildings.map((b) => (
+                          <option key={b.id} value={b.name}>
+                            {b.code} — {language === 'ar' ? (b.nameAr || b.name) : b.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="Main Complex Zone">Main Complex Zone</option>
+                      )}
+                    </select>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Requested Witness Date</label>
-                  <input
-                    type="date"
-                    value={newDate}
-                    onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs"
-                    required
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Floor Location</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomFloor(!isCustomFloor)}
+                      className="text-[10px] text-purple-700 hover:underline font-semibold"
+                    >
+                      {isCustomFloor ? (language === 'ar' ? 'من القائمة' : 'From List') : (language === 'ar' ? '+ إدخال يدوي' : '+ Custom')}
+                    </button>
+                  </div>
+                  {isCustomFloor ? (
+                    <input
+                      type="text"
+                      value={newFloor}
+                      onChange={(e) => setNewFloor(e.target.value)}
+                      placeholder="e.g. Basement Level 3"
+                      className="w-full border border-slate-300 rounded p-2 text-xs"
+                      required
+                    />
+                  ) : (
+                    <select
+                      value={newFloor}
+                      onChange={(e) => setNewFloor(e.target.value)}
+                      className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-medium"
+                      required
+                    >
+                      {(() => {
+                        const bld = currentProject?.buildings?.find(b => b.name === newZone || b.code === newZone);
+                        const floorsList = bld?.floors && bld.floors.length > 0
+                          ? bld.floors
+                          : (currentProject?.floors && currentProject.floors.length > 0
+                            ? currentProject.floors
+                            : ['Basement Level 1', 'Ground Floor', 'Level 1', 'Roof']);
+                        return floorsList.map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ));
+                      })()}
+                    </select>
+                  )}
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Requested Witness Date</label>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full border border-slate-300 rounded p-2 text-xs"
+                  required
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t">

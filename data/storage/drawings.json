@@ -1,6 +1,78 @@
 [
   {
     "projectId": "prj-ksp-01",
+    "drawingNumber": "APX-KSP-03-MEP-HVAC-T7537-P01",
+    "title": "Chilled Water Plant Secondary Header Coordinated Layout",
+    "discipline": "MEP-HVAC",
+    "system": "Chilled Water",
+    "buildingZone": "Energy Center B3",
+    "floorLevel": "Basement 3",
+    "drawingType": "Shop Drawing",
+    "originator": "APEX Technical Office",
+    "currentRevision": "P02",
+    "revisionDate": "2026-10-12",
+    "reviewStatus": "Code B - Approved as Noted",
+    "revisions": [
+      {
+        "id": "rev-test-1791833157537",
+        "drawingId": "",
+        "revisionNumber": "P01",
+        "submissionDate": "2026-10-01",
+        "status": "Code C - Revise and Resubmit",
+        "comments": "Pipe clearance too small.",
+        "createdAt": "2026-10-12T19:25:57.537Z"
+      },
+      {
+        "id": "drw-rev-3cbebea5",
+        "drawingId": "drw-232cc11c",
+        "revisionNumber": "P02",
+        "submissionDate": "2026-10-12",
+        "status": "Code B - Approved as Noted",
+        "approvalCode": "B",
+        "comments": "Clashes resolved. Approved with notes.",
+        "reviewer": "Eng. Tariq Al-Mansoor",
+        "transmittalNumber": "TR-9999",
+        "createdAt": "2026-10-12T19:25:57.542Z"
+      }
+    ],
+    "id": "drw-232cc11c",
+    "createdAt": "2026-10-12T19:25:57.539Z",
+    "updatedAt": "2026-10-12T19:25:57.542Z",
+    "approvalCode": "B",
+    "reviewComments": "Clashes resolved. Approved with notes."
+  },
+  {
+    "projectId": "prj-e1a743e7",
+    "drawingNumber": "001-MEP-HVAC-DWG-0001-P01",
+    "title": "Basment HVAC",
+    "discipline": "MEP-HVAC",
+    "system": "Chilled Water Plant",
+    "buildingZone": "Energy Center B3",
+    "floorLevel": "Basement Level 3",
+    "drawingType": "Shop Drawing",
+    "originator": "APEX Technical Office",
+    "currentRevision": "P01",
+    "revisionDate": "2026-10-12",
+    "submissionDate": "2026-10-12",
+    "reviewStatus": "Submitted to Consultant",
+    "reviewer": "Consultant Supervising Lead",
+    "revisions": [
+      {
+        "id": "rev-init-1791831882153",
+        "drawingId": "",
+        "revisionNumber": "P01",
+        "submissionDate": "2026-10-12",
+        "status": "Submitted to Consultant",
+        "comments": "Initial formal submission for construction review.",
+        "createdAt": "2026-10-12T19:04:42.153Z"
+      }
+    ],
+    "id": "drw-47ec0c7b",
+    "createdAt": "2026-10-12T19:04:42.157Z",
+    "updatedAt": "2026-10-12T19:04:42.157Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
     "drawingNumber": "APX-KSP-03-MEP-HVAC-T5949-P01",
     "title": "Chilled Water Plant Secondary Header Coordinated Layout",
     "discipline": "MEP-HVAC",

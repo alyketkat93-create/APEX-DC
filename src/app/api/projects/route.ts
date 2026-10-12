@@ -19,3 +19,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json();
+    if (!body.id) {
+      return NextResponse.json({ success: false, error: 'Project ID is required' }, { status: 400 });
+    }
+    const updated = db.updateProject(body.id, body);
+    return NextResponse.json({ success: true, data: updated });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}

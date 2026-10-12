@@ -256,5 +256,52 @@
     "id": "mod-204e88e9",
     "createdAt": "2026-10-12T18:59:16.025Z",
     "updatedAt": "2026-10-12T18:59:16.025Z"
+  },
+  {
+    "key": "custom-hpt-57560",
+    "name": "High Potential (Hi-Pot) Cable Test Register",
+    "nameAr": "سجل اختبار الجهد العالي للكابلات",
+    "icon": "Zap",
+    "category": "MEP Electrical QA/QC",
+    "recordType": "HV Test",
+    "numberingPrefix": "HPT",
+    "workflowStatuses": [
+      {
+        "code": "DRAFT",
+        "label": "Draft",
+        "labelAr": "مسودة",
+        "color": "gray",
+        "isClosed": false
+      },
+      {
+        "code": "CERTIFIED",
+        "label": "Certified",
+        "labelAr": "معتمد",
+        "color": "green",
+        "isClosed": true
+      }
+    ],
+    "fields": [
+      {
+        "id": "h1",
+        "name": "feederTag",
+        "label": "Feeder Tag",
+        "labelAr": "رقم الفيدر",
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "h2",
+        "name": "leakageCurrentMa",
+        "label": "Leakage Current (mA)",
+        "labelAr": "تيار التسريب",
+        "type": "number",
+        "required": true
+      }
+    ],
+    "active": true,
+    "id": "mod-fc818fce",
+    "createdAt": "2026-10-12T19:25:57.560Z",
+    "updatedAt": "2026-10-12T19:25:57.560Z"
   }
 ]

@@ -1,6 +1,26 @@
 [
   {
     "projectId": "prj-ksp-01",
+    "correspondenceNumber": "APX-KSP-03-COR-OUT-T7557",
+    "direction": "Outgoing",
+    "letterRef": "APX/KSP03/DAR/2026/099",
+    "letterDate": "2026-10-10",
+    "receivedDispatchedDate": "2026-10-10",
+    "sender": "APEX Engineering & Construction JV",
+    "recipient": "Dar Al-Handasah Consultants",
+    "subject": "Formal Notice of Site Access Delay at Sector C",
+    "discipline": "MEP-HVAC",
+    "contractClauseRef": "FIDIC Cl. 2.1 (Right of Access to the Site)",
+    "responsiblePerson": "Eng. Aly Ketkat",
+    "status": "Dispatched",
+    "confidentiality": "Normal",
+    "letterBody": "We formally notify delay in site possession.",
+    "id": "cor-0a1f9cf3",
+    "createdAt": "2026-10-12T19:25:57.557Z",
+    "updatedAt": "2026-10-12T19:25:57.557Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
     "correspondenceNumber": "APX-KSP-03-COR-OUT-T6022",
     "direction": "Outgoing",
     "letterRef": "APX/KSP03/DAR/2026/099",
