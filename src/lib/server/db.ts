@@ -18,12 +18,46 @@ import {
   initialCustomRecords, initialUsers, initialAuditEvents, initialNotifications 
 } from '@/data/seedData';
 
-const STORAGE_DIR = path.join(process.cwd(), 'data', 'storage');
+function resolveStorageDir(): string {
+  // If running in Vercel or Serverless environment
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY) {
+    const tmpStorage = path.join('/tmp', 'apex-storage');
+    try {
+      if (!fs.existsSync(tmpStorage)) {
+        fs.mkdirSync(tmpStorage, { recursive: true });
+      }
+      return tmpStorage;
+    } catch {
+      return '/tmp';
+    }
+  }
 
-// Ensure storage directory exists
-if (!fs.existsSync(STORAGE_DIR)) {
-  fs.mkdirSync(STORAGE_DIR, { recursive: true });
+  // Local or container environments
+  const defaultDir = path.join(process.cwd(), 'data', 'storage');
+  try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    // Test write permission
+    const testFile = path.join(defaultDir, '.write-test');
+    fs.writeFileSync(testFile, 'ok', 'utf-8');
+    fs.unlinkSync(testFile);
+    return defaultDir;
+  } catch {
+    // If process.cwd() is read-only (as on serverless without env set), fallback to /tmp
+    const tmpStorage = path.join('/tmp', 'apex-storage');
+    try {
+      if (!fs.existsSync(tmpStorage)) {
+        fs.mkdirSync(tmpStorage, { recursive: true });
+      }
+      return tmpStorage;
+    } catch {
+      return '/tmp';
+    }
+  }
 }
+
+const STORAGE_DIR = resolveStorageDir();
 
 function getFilePath(collection: string): string {
   return path.join(STORAGE_DIR, `${collection}.json`);
@@ -31,29 +65,50 @@ function getFilePath(collection: string): string {
 
 function readCollection<T>(collection: string, initialData: T[]): T[] {
   const filePath = getFilePath(collection);
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2), 'utf-8');
-    return initialData;
-  }
-  try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    if (!raw.trim()) {
-      fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2), 'utf-8');
-      return initialData;
+  // Check primary storage path
+  if (fs.existsSync(filePath)) {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      if (raw.trim()) {
+        return JSON.parse(raw);
+      }
+    } catch (err) {
+      console.warn(`Error reading ${filePath}, falling back to initial data:`, err);
     }
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error(`Error reading ${collection}.json, re-initializing:`, err);
-    fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2), 'utf-8');
-    return initialData;
   }
+
+  // Check bundled path if STORAGE_DIR is different from process.cwd()/data/storage
+  const bundledPath = path.join(process.cwd(), 'data', 'storage', `${collection}.json`);
+  if (bundledPath !== filePath && fs.existsSync(bundledPath)) {
+    try {
+      const raw = fs.readFileSync(bundledPath, 'utf-8');
+      if (raw.trim()) {
+        const parsed = JSON.parse(raw);
+        // Try caching to STORAGE_DIR
+        try {
+          fs.writeFileSync(filePath, raw, 'utf-8');
+        } catch {}
+        return parsed;
+      }
+    } catch {}
+  }
+
+  // Fallback to initialData
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2), 'utf-8');
+  } catch {}
+  return initialData;
 }
 
 function writeCollection<T>(collection: string, data: T[]): void {
-  const filePath = getFilePath(collection);
-  const tempPath = `${filePath}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tempPath, filePath);
+  try {
+    const filePath = getFilePath(collection);
+    const tempPath = `${filePath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tempPath, filePath);
+  } catch (err) {
+    console.warn(`Database writeCollection warning (${collection}):`, err);
+  }
 }
 
 // Global in-memory cache synchronized with disk
