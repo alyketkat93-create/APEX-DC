@@ -6,8 +6,12 @@ import { Rfi, Discipline } from '@/types';
 import * as XLSX from 'xlsx';
 import { 
   HelpCircle, Plus, Search, Download, Clock, AlertTriangle, 
-  CheckCircle2, DollarSign, Calendar, FileText
+  CheckCircle2, DollarSign, Calendar, FileText, Eye, X
 } from 'lucide-react';
+import { DateStatusBadge, DateLifecycleCard, DateInputsFormSection } from '@/components/common/DateLifecycleDisplay';
+import { UniversalDocumentLinks } from '@/components/common/UniversalDocumentLinks';
+import { RecordAuditHistory } from '@/components/common/RecordAuditHistory';
+import { calculateSlaStatus, formatDateSafe, todayIso } from '@/lib/dateUtils';
 
 export function RfisView() {
   const { currentProjectId, currentProject, language, t } = useProject();
@@ -18,10 +22,13 @@ export function RfisView() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [slaFilter, setSlaFilter] = useState<'ALL' | 'AWAITING' | 'PENDING' | 'OVERDUE' | 'APPROVED'>('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'MISSING_DATES' | 'CORRECTED_DATES' | 'WITH_LINKS'>('ALL');
 
-  // Modals
+  // Modals & Drawer
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [responseModalOpen, setResponseModalOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRfi, setSelectedRfi] = useState<Rfi | null>(null);
 
   // Form State
@@ -34,6 +41,18 @@ export function RfisView() {
   const [newCostImpact, setNewCostImpact] = useState(false);
   const [newScheduleImpact, setNewScheduleImpact] = useState(true);
   const [generatedDocNum, setGeneratedDocNum] = useState('');
+  const [newDates, setNewDates] = useState({
+    preparationDate: todayIso(),
+    internalReviewDate: '',
+    submissionDate: todayIso(),
+    plannedSubmissionDate: todayIso(),
+    consultantReceiptDate: '',
+    consultantResponseDate: '',
+    requiredApprovalDate: '',
+    approvalDate: '',
+    revisionDate: todayIso(),
+    closureDate: '',
+  });
 
   // Response Form State
   const [consultantReply, setConsultantReply] = useState('');
@@ -79,6 +98,18 @@ export function RfisView() {
 
   const handleOpenCreateModal = () => {
     generateNumber(newDiscipline);
+    setNewDates({
+      preparationDate: todayIso(),
+      internalReviewDate: '',
+      submissionDate: todayIso(),
+      plannedSubmissionDate: todayIso(),
+      consultantReceiptDate: '',
+      consultantResponseDate: '',
+      requiredApprovalDate: '',
+      approvalDate: '',
+      revisionDate: todayIso(),
+      closureDate: '',
+    });
     setCreateModalOpen(true);
   };
 
@@ -100,12 +131,13 @@ export function RfisView() {
           drawingRefs: newDwgRef,
           originator: 'Eng. Hisham Al-Husseini (MEP CM)',
           recipient: 'Dar Al-Handasah Structural Lead',
-          dateRaised: new Date().toISOString().split('T')[0],
-          requiredResponseDate: new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0],
+          dateRaised: newDates.submissionDate || todayIso(),
+          requiredResponseDate: newDates.requiredApprovalDate || new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0],
           priority: newPriority,
           potentialCostImpact: newCostImpact,
           potentialScheduleImpact: newScheduleImpact,
           status: 'Open',
+          ...newDates,
         }),
       });
       const json = await res.json();
@@ -132,7 +164,9 @@ export function RfisView() {
           id: selectedRfi.id,
           consultantResponse: consultantReply,
           status: 'Answered',
-          actualResponseDate: new Date().toISOString().split('T')[0],
+          actualResponseDate: todayIso(),
+          consultantResponseDate: todayIso(),
+          closureDate: todayIso(),
         }),
       });
       const json = await res.json();
@@ -146,19 +180,26 @@ export function RfisView() {
   };
 
   const exportToExcel = () => {
-    const exportData = filteredRfis.map((r, index) => ({
-      '#': index + 1,
-      'RFI Number': r.rfiNumber,
-      'Subject': r.subject,
-      'Discipline': r.discipline,
-      'Date Raised': r.dateRaised,
-      'Required Date': r.requiredResponseDate,
-      'Priority': r.priority,
-      'Cost Impact': r.potentialCostImpact ? 'YES' : 'NO',
-      'Schedule Impact': r.potentialScheduleImpact ? 'YES' : 'NO',
-      'Status': r.status,
-      'Response': r.consultantResponse || 'Pending',
-    }));
+    const exportData = filteredRfis.map((r, index) => {
+      const sla = calculateSlaStatus(r, currentProject?.reviewDurationDays || 7);
+      return {
+        '#': index + 1,
+        'RFI Number': r.rfiNumber,
+        'Subject': r.subject,
+        'Discipline': r.discipline,
+        'Date Raised': r.dateRaised,
+        'Required Date': r.requiredResponseDate,
+        'Priority': r.priority,
+        'Cost Impact': r.potentialCostImpact ? 'YES' : 'NO',
+        'Schedule Impact': r.potentialScheduleImpact ? 'YES' : 'NO',
+        'Status': r.status,
+        'SLA Turnaround': sla.label,
+        'Preparation Date': r.preparationDate || 'N/A',
+        'Submission Date': r.submissionDate || 'N/A',
+        'Consultant Response Date': r.consultantResponseDate || 'N/A',
+        'Response': r.consultantResponse || 'Pending',
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -172,8 +213,33 @@ export function RfisView() {
       r.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.technicalQuestion.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
-    return matchSearch && matchStatus;
+
+    let matchSla = true;
+    const sla = calculateSlaStatus(r, currentProject?.reviewDurationDays || 7);
+    if (slaFilter === 'AWAITING') matchSla = sla.category === 'AWAITING_SUBMISSION';
+    else if (slaFilter === 'PENDING') matchSla = sla.category === 'PENDING_REVIEW';
+    else if (slaFilter === 'OVERDUE') matchSla = sla.category === 'OVERDUE';
+    else if (slaFilter === 'APPROVED') matchSla = sla.category === 'APPROVED';
+
+    let matchDateFilter = true;
+    if (dateFilter === 'MISSING_DATES') {
+      matchDateFilter = !r.submissionDate || (!r.approvalDate && !r.closureDate && !r.consultantResponseDate);
+    } else if (dateFilter === 'CORRECTED_DATES') {
+      matchDateFilter = Boolean(r.hasDateCorrections || (r.dateCorrectionHistory && r.dateCorrectionHistory.length > 0));
+    } else if (dateFilter === 'WITH_LINKS') {
+      matchDateFilter = Boolean((r.documentLinks && r.documentLinks.length > 0) || (r.linkedApexRecords && r.linkedApexRecords.length > 0));
+    }
+
+    return matchSearch && matchStatus && matchSla && matchDateFilter;
   });
+
+  const slaStats = {
+    total: rfis.length,
+    awaiting: rfis.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 7).category === 'AWAITING_SUBMISSION').length,
+    pending: rfis.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 7).category === 'PENDING_REVIEW').length,
+    overdue: rfis.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 7).category === 'OVERDUE').length,
+    approved: rfis.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 7).category === 'APPROVED').length,
+  };
 
   return (
     <div className="space-y-4">
@@ -190,7 +256,7 @@ export function RfisView() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Technical queries, schedule & cost impact indicators, response aging & consultant replies
+            Technical queries, schedule & cost impact indicators, response aging & 8-point SLA turnaround
           </p>
         </div>
 
@@ -211,6 +277,45 @@ export function RfisView() {
             <span>{language === 'ar' ? 'استفسار جديد' : 'Raise RFI'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Quick SLA Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
+          {language === 'ar' ? 'تصفية المهل والردود:' : 'SLA Filter:'}
+        </span>
+        <button
+          onClick={() => setSlaFilter('ALL')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          {language === 'ar' ? 'الكل' : 'All'} ({slaStats.total})
+        </button>
+        <button
+          onClick={() => setSlaFilter('PENDING')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'PENDING' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+          }`}
+        >
+          {language === 'ar' ? 'بانتظار رد الاستشاري' : 'Pending Response'} ({slaStats.pending})
+        </button>
+        <button
+          onClick={() => setSlaFilter('OVERDUE')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'OVERDUE' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+          }`}
+        >
+          ⚠️ {language === 'ar' ? 'متأخر الرد' : 'Overdue Response'} ({slaStats.overdue})
+        </button>
+        <button
+          onClick={() => setSlaFilter('APPROVED')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'APPROVED' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+          }`}
+        >
+          ✓ {language === 'ar' ? 'تمت الإجابة / مغلق' : 'Answered / Closed'} ({slaStats.approved})
+        </button>
       </div>
 
       {/* Filter Toolbar */}
@@ -236,6 +341,17 @@ export function RfisView() {
           <option value="Answered">Answered</option>
           <option value="Closed">Closed</option>
         </select>
+
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value as any)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium"
+        >
+          <option value="ALL">All Date Records</option>
+          <option value="MISSING_DATES">Missing Critical Dates</option>
+          <option value="CORRECTED_DATES">Historical Date Corrections</option>
+          <option value="WITH_LINKS">With External Links / Records</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -248,83 +364,104 @@ export function RfisView() {
                 <th className="py-3 px-3">Subject & Technical Query</th>
                 <th className="py-3 px-3">Discipline & Location</th>
                 <th className="py-3 px-3">Impact Flags</th>
-                <th className="py-3 px-3">Raised / Due Date</th>
-                <th className="py-3 px-3">Consultant Response</th>
+                <th className="py-3 px-3">Raised / Target Dates</th>
+                <th className="py-3 px-3">Status</th>
+                <th className="py-3 px-3">Turnaround SLA</th>
                 <th className="py-3 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredRfis.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
-                    No RFIs found matching criteria.
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                    No requests for information found.
                   </td>
                 </tr>
               ) : (
                 filteredRfis.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition group">
                     <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                      {r.rfiNumber}
+                      <button
+                        onClick={() => {
+                          setSelectedRfi(r);
+                          setDrawerOpen(true);
+                        }}
+                        className="hover:text-indigo-700 hover:underline text-left"
+                      >
+                        {r.rfiNumber}
+                      </button>
                     </td>
 
                     <td className="py-3 px-3 max-w-xs">
                       <div className="font-semibold text-slate-800 line-clamp-1">{r.subject}</div>
-                      <div className="text-[11px] text-slate-500 line-clamp-2">{r.technicalQuestion}</div>
+                      <div className="text-[11px] text-slate-500 line-clamp-1">{r.technicalQuestion}</div>
                     </td>
 
-                    <td className="py-3 px-3 whitespace-nowrap text-slate-700">
-                      <div className="font-semibold">{r.discipline}</div>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="font-semibold text-slate-800">{r.discipline}</div>
                       <div className="text-[10px] text-slate-400">{r.location}</div>
                     </td>
 
-                    {/* Impact Flags */}
                     <td className="py-3 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 text-[10px]">
-                        {r.potentialScheduleImpact && (
-                          <span className="font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                            Time Impact
-                          </span>
-                        )}
+                      <div className="flex items-center gap-1">
                         {r.potentialCostImpact && (
-                          <span className="font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                            Cost Impact
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded border border-amber-300">
+                            Cost
                           </span>
                         )}
-                        {!r.potentialScheduleImpact && !r.potentialCostImpact && (
-                          <span className="text-slate-400">None</span>
+                        {r.potentialScheduleImpact && (
+                          <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded border border-rose-300">
+                            Time
+                          </span>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-3 px-3 font-mono text-slate-700 whitespace-nowrap text-[11px]">
-                      <div>Raised: {r.dateRaised}</div>
-                      <span className="text-slate-500">Due: {r.requiredResponseDate}</span>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex flex-col text-[11px]">
+                        <span className="text-slate-700">Raised: <b>{formatDateSafe(r.submissionDate || r.dateRaised)}</b></span>
+                        <span className="text-slate-400 text-[10px]">Due: {formatDateSafe(r.requiredApprovalDate || r.requiredResponseDate)}</span>
+                      </div>
                     </td>
 
-                    {/* Response Status */}
-                    <td className="py-3 px-3 max-w-xs text-[11px]">
-                      {r.consultantResponse ? (
-                        <div className="text-emerald-800 font-medium line-clamp-2 bg-emerald-50/70 p-1.5 rounded border border-emerald-100">
-                          {r.consultantResponse}
-                        </div>
-                      ) : (
-                        <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          Pending Consultant Reply
-                        </span>
-                      )}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                        r.status === 'Answered' || r.status === 'Closed' ? 'bg-emerald-100 text-emerald-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {r.status}
+                      </span>
+                    </td>
+
+                    {/* Turnaround SLA */}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <DateStatusBadge dates={r} slaDays={currentProject?.reviewDurationDays || 7} />
                     </td>
 
                     <td className="py-3 px-3 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => {
-                          setSelectedRfi(r);
-                          setConsultantReply(r.consultantResponse || '');
-                          setResponseModalOpen(true);
-                        }}
-                        className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition"
-                      >
-                        {r.consultantResponse ? 'Edit Reply' : 'Record Reply'}
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedRfi(r);
+                            setDrawerOpen(true);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                          title="View 8-Point Dates Timeline"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSelectedRfi(r);
+                            setConsultantReply(r.consultantResponse || '');
+                            setResponseModalOpen(true);
+                          }}
+                          className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] transition"
+                        >
+                          {r.consultantResponse ? 'Edit Reply' : 'Record Reply'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -334,19 +471,132 @@ export function RfisView() {
         </div>
       </div>
 
+      {/* Drawer for Selected RFI */}
+      {drawerOpen && selectedRfi && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-navy-950/60 backdrop-blur-xs animate-in fade-in">
+          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col">
+              <div className="px-6 py-4 bg-navy-900 text-white flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-mono font-bold text-indigo-400">
+                    {selectedRfi.rfiNumber}
+                  </div>
+                  <h2 className="text-sm font-bold truncate max-w-md mt-0.5">
+                    {selectedRfi.subject}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-navy-800 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                <DateLifecycleCard 
+                  dates={selectedRfi} 
+                  slaDays={currentProject?.reviewDurationDays || 7} 
+                  moduleId="rfis"
+                  recordId={selectedRfi.id}
+                  recordRef={selectedRfi.rfiNumber}
+                  allowEdit={true}
+                  onDatesUpdated={(updated) => {
+                    setSelectedRfi(prev => prev ? { ...prev, ...updated } : null);
+                    fetchRfis();
+                  }}
+                />
+
+                {/* Universal Documents & References + Linked APEX Records */}
+                <UniversalDocumentLinks
+                  moduleId="rfis"
+                  recordId={selectedRfi.id}
+                  recordRef={selectedRfi.rfiNumber}
+                  documentLinks={selectedRfi.documentLinks || []}
+                  linkedApexRecords={selectedRfi.linkedApexRecords || []}
+                  legacyAttachments={selectedRfi.attachments}
+                  legacyFileUrl={selectedRfi.fileUrl}
+                  projectId={currentProjectId}
+                  onUpdated={(updated) => {
+                    setSelectedRfi(updated);
+                    fetchRfis();
+                  }}
+                  language={language}
+                />
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-3">
+                    Query Specifics
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Originator</span>
+                      <span className="font-semibold text-slate-800">{selectedRfi.originator}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Recipient</span>
+                      <span className="font-semibold text-slate-800">{selectedRfi.recipient}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Location</span>
+                      <span className="font-semibold text-slate-800">{selectedRfi.location}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Drawing Reference</span>
+                      <span className="font-mono font-semibold text-slate-800">{selectedRfi.drawingRefs || 'General'}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-200">
+                    <span className="text-slate-400 block text-[10px]">Technical Question</span>
+                    <p className="text-slate-800 mt-1 leading-relaxed bg-white p-3 rounded border border-slate-200">
+                      {selectedRfi.technicalQuestion}
+                    </p>
+                  </div>
+                  {selectedRfi.consultantResponse && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <span className="text-emerald-600 font-bold block text-[10px]">Consultant Formal Response</span>
+                      <p className="text-slate-800 mt-1 leading-relaxed bg-emerald-50/40 p-3 rounded border border-emerald-200">
+                        {selectedRfi.consultantResponse}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Immutable Audit Trail for this RFI */}
+                <RecordAuditHistory
+                  recordId={selectedRfi.id}
+                  recordRef={selectedRfi.rfiNumber}
+                  projectId={currentProjectId}
+                  language={language}
+                />
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-1.5 rounded bg-navy-900 text-white font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Modal */}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 bg-navy-900 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-sm">Raise Technical RFI</h3>
-                <div className="text-[11px] text-slate-300">Contractual request for information & clarification</div>
+                <h3 className="font-bold text-sm">Raise Technical Request for Information (RFI)</h3>
+                <div className="text-[11px] text-slate-300">Contractual clarification & 8-point date tracking</div>
               </div>
               <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
-            <form onSubmit={handleCreateRfi} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleCreateRfi} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Generated RFI Number</label>
                 <input
@@ -359,12 +609,12 @@ export function RfisView() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">RFI Subject</label>
+                <label className="block font-bold text-slate-700 mb-1">Subject</label>
                 <input
                   type="text"
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
-                  placeholder="e.g. Clash between 450mm Chilled Water Riser and Post-Tensioned Wall"
+                  placeholder="e.g. Clash between 500mm Chilled Water Pipe and Structural Transfer Beam B-12"
                   className="w-full border border-slate-300 rounded p-2 text-xs"
                   required
                 />
@@ -387,56 +637,38 @@ export function RfisView() {
                     <option value="MEP-Plumbing">MEP-Plumbing</option>
                     <option value="MEP-Electrical">MEP-Electrical</option>
                     <option value="Structural">Structural</option>
+                    <option value="Architectural">Architectural</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Priority</label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-bold"
-                  >
-                    <option value="Urgent">Urgent (48 Hours)</option>
-                    <option value="High">High (7 Days)</option>
-                    <option value="Medium">Medium (14 Days)</option>
-                  </select>
+                  <label className="block font-bold text-slate-700 mb-1">Location / Zone</label>
+                  <input
+                    type="text"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    className="w-full border border-slate-300 rounded p-2 text-xs"
+                    required
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Detailed Technical Query</label>
+                <label className="block font-bold text-slate-700 mb-1">Technical Question & Proposed Solution</label>
                 <textarea
                   value={newQuestion}
                   onChange={(e) => setNewQuestion(e.target.value)}
-                  placeholder="Detail exact standard, drawing conflicts, or site condition requiring instruction..."
-                  className="w-full border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-indigo-500"
+                  placeholder="Describe the discrepancy, clash, or request for confirmation in detail..."
+                  className="w-full border border-slate-300 rounded p-2 text-xs"
                   rows={3}
                   required
                 />
               </div>
 
-              <div className="flex items-center gap-6 p-3 bg-slate-50 border rounded">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={newScheduleImpact}
-                    onChange={(e) => setNewScheduleImpact(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded"
-                  />
-                  <span>Potential Schedule / Time Impact</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={newCostImpact}
-                    onChange={(e) => setNewCostImpact(e.target.checked)}
-                    className="w-4 h-4 text-red-600 rounded"
-                  />
-                  <span>Potential Cost Impact</span>
-                </label>
-              </div>
+              {/* 8-Point Dates */}
+              <DateInputsFormSection
+                dates={newDates}
+                onChange={setNewDates}
+              />
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button
@@ -450,7 +682,7 @@ export function RfisView() {
                   type="submit"
                   className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                 >
-                  Issue Formal RFI
+                  Submit RFI
                 </button>
               </div>
             </form>
@@ -461,28 +693,23 @@ export function RfisView() {
       {/* Record Response Modal */}
       {responseModalOpen && selectedRfi && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
             <div className="px-6 py-4 bg-navy-900 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-sm">Record Consultant RFI Response</h3>
+                <h3 className="font-bold text-sm">Record Consultant Response</h3>
                 <div className="text-[11px] text-slate-300 font-mono">{selectedRfi.rfiNumber}</div>
               </div>
               <button onClick={() => setResponseModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <form onSubmit={handleRecordResponse} className="p-6 space-y-4 text-xs">
-              <div className="p-3 bg-slate-50 border rounded text-[11px]">
-                <div className="font-bold text-slate-800">Query: {selectedRfi.subject}</div>
-                <p className="text-slate-600 mt-1">{selectedRfi.technicalQuestion}</p>
-              </div>
-
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Consultant Official Reply / Instruction</label>
+                <label className="block font-bold text-slate-700 mb-1">Consultant Response & Directions</label>
                 <textarea
                   value={consultantReply}
                   onChange={(e) => setConsultantReply(e.target.value)}
-                  placeholder="Enter the engineering directive or clarification from consultant..."
-                  className="w-full border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-indigo-500"
+                  placeholder="Enter consultant reply, sketches references, or design variance approval..."
+                  className="w-full border border-slate-300 rounded p-2 text-xs"
                   rows={4}
                   required
                 />
@@ -500,7 +727,7 @@ export function RfisView() {
                   type="submit"
                   className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                 >
-                  Save Formal Response
+                  Save & Close RFI
                 </button>
               </div>
             </form>

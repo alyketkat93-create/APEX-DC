@@ -15,9 +15,11 @@ export type Discipline =
 
 export type ReviewStatus = 
   | 'Draft'
+  | 'Draft / Prepared'
   | 'Internal Review'
   | 'Submitted to Consultant'
   | 'Under Review'
+  | 'Pending Consultant Review'
   | 'Code A - Approved'
   | 'Code B - Approved as Noted'
   | 'Code C - Revise and Resubmit'
@@ -93,7 +95,98 @@ export interface Project {
   updatedAt: string;
 }
 
-export interface DrawingRevision {
+export interface DateCorrectionLog {
+  id: string;
+  field: string;
+  fieldLabelEn: string;
+  fieldLabelAr: string;
+  previousDate?: string;
+  newDate: string;
+  reason: string;
+  correctedBy: string;
+  correctedAt: string;
+}
+
+export type DocumentLinkCategory = 
+  | 'Approved Drawing PDF'
+  | 'BIM 360 / ACC Model'
+  | 'Design / IFC Drawing'
+  | 'Technical Specification'
+  | 'Manufacturer Catalog & PDS'
+  | 'Inspection Sheet / Checklist'
+  | 'Testing & Commissioning Report'
+  | 'Method Statement & Risk Assessment'
+  | 'Material Test Certificate (MTC)'
+  | 'Site Photo Log'
+  | 'Contractual Notice / Letter'
+  | 'Calculation Sheet'
+  | 'General Reference';
+
+export interface DocumentLink {
+  id: string;
+  title: string;
+  url: string;
+  category: DocumentLinkCategory | string;
+  docNumber?: string;
+  revision?: string;
+  docDate?: string;
+  submissionDate?: string;
+  approvalDate?: string;
+  description?: string;
+  addedBy?: string;
+  addedAt: string;
+  updatedAt?: string;
+}
+
+export type ApexRecordType = 
+  | 'drawing' 
+  | 'submittal' 
+  | 'ir' 
+  | 'mir' 
+  | 'rfi' 
+  | 'transmittal' 
+  | 'correspondence' 
+  | 'quality' 
+  | 'siteInstruction' 
+  | 'handover' 
+  | 'customRecord';
+
+export interface LinkedApexRecord {
+  id: string;
+  recordType: ApexRecordType;
+  recordId: string;
+  recordNumber: string;
+  title: string;
+  revision?: string;
+  status: string;
+  submissionDate?: string;
+  approvalDate?: string;
+  relationship: 'Referenced In' | 'Superseded By' | 'Supported By' | 'Related Action' | 'General Link';
+  notes?: string;
+  linkedAt: string;
+  linkedBy?: string;
+}
+
+export interface DocumentLifecycleDates {
+  preparationDate?: string;          // Date drafted/prepared by technical office
+  internalReviewDate?: string;       // Date checked/approved internally
+  submissionDate?: string;           // Actual Date officially sent / submitted to consultant
+  plannedSubmissionDate?: string;    // Planned / baseline submission date
+  consultantReceiptDate?: string;    // Date consultant officially logged / acknowledged receipt
+  requiredApprovalDate?: string;     // Turnaround SLA deadline for consultant response
+  plannedResponseDate?: string;      // Planned response date
+  actualResponseDate?: string;       // Actual response date
+  consultantResponseDate?: string;   // Actual Date consultant issued response / stamp
+  approvalDate?: string;             // Date officially approved (Code A / Code B)
+  revisionDate?: string;             // Date of the active revision
+  inspectionDate?: string;           // Date of site inspection
+  dispatchDate?: string;             // Date of official dispatch
+  closureDate?: string;              // Date closed out / archived
+  dateCorrectionHistory?: DateCorrectionLog[]; // Non-destructive log of all date modifications
+  hasDateCorrections?: boolean;
+}
+
+export interface DrawingRevision extends DocumentLifecycleDates {
   id: string;
   drawingId: string;
   revisionNumber: string; // e.g. 'P01', 'P02', 'C01', '0'
@@ -104,11 +197,14 @@ export interface DrawingRevision {
   reviewer?: string;
   fileName?: string;
   fileUrl?: string;
+  transmittalId?: string;
   transmittalNumber?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
 }
 
-export interface Drawing {
+export interface Drawing extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   drawingNumber: string;
@@ -132,32 +228,31 @@ export interface Drawing {
   contractorRef?: string;
   consultantRef?: string;
   currentRevision: string;
-  revisionDate: string;
-  submissionDate?: string;
   reviewStatus: ReviewStatus;
   approvalCode?: 'A' | 'B' | 'C' | 'D';
   reviewer?: string;
   reviewComments?: string;
-  approvalDate?: string;
-  plannedSubmissionDate?: string;
   requiredResponseDate?: string;
   actualResponseDate?: string;
   relatedRfiId?: string;
   relatedSubmittalId?: string;
   relatedTransmittalId?: string;
+  relatedTransmittal?: string;
   supersededDrawingRef?: string;
   cadFileRef?: string;
   bimModelRef?: string;
   fileUrl?: string;
   fileName?: string;
   fileSize?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   revisions: DrawingRevision[];
   notes?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface TechnicalSubmittal {
+export interface TechnicalSubmittal extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   submittalNumber: string;
@@ -188,9 +283,10 @@ export interface TechnicalSubmittal {
   preparedBy: string;
   checkedBy: string;
   submissionDate: string;
-  requiredApprovalDate: string;
+  requiredApprovalDate?: string;
   actualApprovalDate?: string;
   reviewStatus: ReviewStatus;
+  approvalCode?: 'A' | 'B' | 'C' | 'D';
   revisionNumber: string;
   consultantComments?: string;
   relatedDrawingIds?: string[];
@@ -200,11 +296,13 @@ export interface TechnicalSubmittal {
   warrantyYears?: number;
   fileUrl?: string;
   fileName?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface InspectionRequest {
+export interface InspectionRequest extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   irNumber: string;
@@ -236,11 +334,13 @@ export interface InspectionRequest {
   correctiveActionSubmitted?: string;
   closureDate?: string;
   attachments?: { name: string; url: string }[];
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface MaterialInspectionRequest {
+export interface MaterialInspectionRequest extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   mirNumber: string;
@@ -272,11 +372,13 @@ export interface MaterialInspectionRequest {
   ncrRef?: string;
   remarks?: string;
   attachments?: { name: string; url: string }[];
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface QualityRecord {
+export interface QualityRecord extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   recordType: 
@@ -305,11 +407,14 @@ export interface QualityRecord {
   closureDate?: string;
   closureEvidence?: string;
   attachments?: { name: string; url: string }[];
+  fileUrl?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Correspondence {
+export interface Correspondence extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   correspondenceNumber: string;
@@ -334,11 +439,13 @@ export interface Correspondence {
   letterBody: string;
   attachments?: { name: string; url: string }[];
   proofOfDispatchReceipt?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Rfi {
+export interface Rfi extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   rfiNumber: string;
@@ -360,6 +467,9 @@ export interface Rfi {
   consultantResponse?: string;
   status: 'Open' | 'Under Review' | 'Answered' | 'Closed';
   attachments?: { name: string; url: string }[];
+  fileUrl?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
@@ -369,18 +479,20 @@ export interface TransmittalItem {
   docTitle: string;
   revision: string;
   docType: string;
+  discipline?: string;
   copies?: number;
   format?: 'PDF' | 'CAD' | 'Hardcopy' | 'Sample';
   notes?: string;
 }
 
-export interface Transmittal {
+export interface Transmittal extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   transmittalNumber: string;
   category: 'Shop Drawings' | 'As-Built Drawings' | 'Technical Submittals' | 'Quality Records' | 'General';
   sender: string;
   recipient: string;
+  transmittalDate?: string;
   submissionDate: string;
   purpose: 'For Approval' | 'For Information' | 'For Construction' | 'For Review & Comment' | 'As-Built Records';
   documentList: TransmittalItem[];
@@ -391,7 +503,9 @@ export interface Transmittal {
   acknowledgedBy?: string;
   acknowledgedDate?: string;
   remarks?: string;
-  status: 'Draft' | 'Issued / Dispatched' | 'Acknowledged' | 'Closed';
+  status: 'Draft' | 'Issued / Dispatched' | 'Received by Consultant' | 'Under Review' | 'Reviewed' | 'Acknowledged' | 'Closed';
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
@@ -428,7 +542,7 @@ export interface Meeting {
   updatedAt: string;
 }
 
-export interface SiteInstruction {
+export interface SiteInstruction extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   instructionNumber: string;
@@ -447,11 +561,13 @@ export interface SiteInstruction {
   approvedAmount?: number;
   approvedDays?: number;
   attachments?: { name: string; url: string }[];
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface HandoverItem {
+export interface HandoverItem extends DocumentLifecycleDates {
   id: string;
   projectId: string;
   itemNumber: string;
@@ -479,6 +595,10 @@ export interface HandoverItem {
   handoverPackageRef: string;
   completionPercent: number;
   notes?: string;
+  attachments?: { name: string; url: string }[];
+  fileUrl?: string;
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
   createdAt: string;
   updatedAt: string;
 }
@@ -555,6 +675,10 @@ export interface CustomRecord {
   status: string;
   data: Record<string, any>;
   attachments?: { name: string; url: string }[];
+  documentLinks?: DocumentLink[];
+  linkedApexRecords?: LinkedApexRecord[];
+  dateCorrectionHistory?: DateCorrectionLog[];
+  hasDateCorrections?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -566,11 +690,28 @@ export interface AuditEvent {
   moduleId: string;
   recordId: string;
   recordRef: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'DISPATCH' | 'REVISE' | 'IMPORT' | 'EXPORT';
+  action: 
+    | 'CREATE' 
+    | 'UPDATE' 
+    | 'DELETE' 
+    | 'SUBMIT' 
+    | 'APPROVE' 
+    | 'REJECT' 
+    | 'DISPATCH' 
+    | 'REVISE' 
+    | 'IMPORT' 
+    | 'EXPORT' 
+    | 'DATE_CORRECTION' 
+    | 'LINK_ADD' 
+    | 'LINK_UPDATE' 
+    | 'LINK_DELETE' 
+    | 'RECORD_LINK';
   userId: string;
   userName: string;
+  fieldChanged?: string;
   previousValue?: string;
   newValue?: string;
+  reason?: string;
   comment?: string;
   timestamp: string;
 }

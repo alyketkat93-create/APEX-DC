@@ -1,5 +1,47 @@
 [
   {
+    "moduleId": "mod-dfc37f4a",
+    "projectId": "prj-ksp-01",
+    "recordNumber": "APX-KSP-03-HPT-0547",
+    "status": "CERTIFIED",
+    "data": {
+      "feederTag": "FDR-SUB01-TR01",
+      "leakageCurrentMa": 0.45
+    },
+    "createdBy": "Eng. Aly Ketkat",
+    "id": "crec-da91cc6b",
+    "createdAt": "2026-10-13T08:28:10.547Z",
+    "updatedAt": "2026-10-13T08:28:10.547Z"
+  },
+  {
+    "moduleId": "mod-725b35b4",
+    "projectId": "prj-ksp-01",
+    "recordNumber": "APX-KSP-03-HPT-6244",
+    "status": "CERTIFIED",
+    "data": {
+      "feederTag": "FDR-SUB01-TR01",
+      "leakageCurrentMa": 0.45
+    },
+    "createdBy": "Eng. Aly Ketkat",
+    "id": "crec-3ea70edf",
+    "createdAt": "2026-10-13T08:23:26.244Z",
+    "updatedAt": "2026-10-13T08:23:26.244Z"
+  },
+  {
+    "moduleId": "mod-fb8c7bbe",
+    "projectId": "prj-ksp-01",
+    "recordNumber": "APX-KSP-03-HPT-3504",
+    "status": "CERTIFIED",
+    "data": {
+      "feederTag": "FDR-SUB01-TR01",
+      "leakageCurrentMa": 0.45
+    },
+    "createdBy": "Eng. Aly Ketkat",
+    "id": "crec-f7651d6d",
+    "createdAt": "2026-10-12T20:45:43.504Z",
+    "updatedAt": "2026-10-12T20:45:43.504Z"
+  },
+  {
     "moduleId": "mod-fc818fce",
     "projectId": "prj-ksp-01",
     "recordNumber": "APX-KSP-03-HPT-7562",

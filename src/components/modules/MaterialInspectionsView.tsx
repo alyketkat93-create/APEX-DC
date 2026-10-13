@@ -6,9 +6,13 @@ import { MaterialInspectionRequest } from '@/types';
 import * as XLSX from 'xlsx';
 import { 
   PackageCheck, Plus, Search, Download, Upload, Printer, 
-  CheckCircle2, AlertTriangle, ShieldAlert, Layers, MapPin
+  CheckCircle2, AlertTriangle, ShieldAlert, Layers, MapPin, Eye, X
 } from 'lucide-react';
 import { PrintableDocumentModal } from '@/components/common/PrintableDocumentModal';
+import { DateStatusBadge, DateLifecycleCard, DateInputsFormSection } from '@/components/common/DateLifecycleDisplay';
+import { UniversalDocumentLinks } from '@/components/common/UniversalDocumentLinks';
+import { RecordAuditHistory } from '@/components/common/RecordAuditHistory';
+import { calculateSlaStatus, formatDateSafe, todayIso } from '@/lib/dateUtils';
 
 export function MaterialInspectionsView() {
   const { currentProjectId, currentProject, language, t } = useProject();
@@ -19,10 +23,13 @@ export function MaterialInspectionsView() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [resultFilter, setResultFilter] = useState('ALL');
+  const [slaFilter, setSlaFilter] = useState<'ALL' | 'AWAITING' | 'PENDING' | 'OVERDUE' | 'APPROVED'>('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'MISSING_DATES' | 'CORRECTED_DATES' | 'WITH_LINKS'>('ALL');
 
-  // Modals
+  // Modals & Drawer
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedMir, setSelectedMir] = useState<MaterialInspectionRequest | null>(null);
 
   // New MIR Form State
@@ -39,6 +46,17 @@ export function MaterialInspectionsView() {
   const [newNcrRef, setNewNcrRef] = useState('APX-KSP-03-QAQC-NCR-0014');
   const [newRemarks, setNewRemarks] = useState('');
   const [generatedDocNum, setGeneratedDocNum] = useState('');
+  const [newDates, setNewDates] = useState({
+    preparationDate: todayIso(),
+    internalReviewDate: '',
+    submissionDate: todayIso(),
+    plannedSubmissionDate: todayIso(),
+    consultantReceiptDate: '',
+    consultantResponseDate: '',
+    approvalDate: '',
+    revisionDate: todayIso(),
+    closureDate: '',
+  });
 
   const fetchMirs = async () => {
     setLoading(true);
@@ -81,6 +99,17 @@ export function MaterialInspectionsView() {
 
   const handleOpenCreateModal = () => {
     generateNumber();
+    setNewDates({
+      preparationDate: todayIso(),
+      internalReviewDate: '',
+      submissionDate: todayIso(),
+      plannedSubmissionDate: todayIso(),
+      consultantReceiptDate: '',
+      consultantResponseDate: '',
+      approvalDate: '',
+      revisionDate: todayIso(),
+      closureDate: '',
+    });
     setCreateModalOpen(true);
   };
 
@@ -106,7 +135,7 @@ export function MaterialInspectionsView() {
           supplier: newSupplier,
           approvedSubmittalRef: newSubmittalRef,
           deliveryNoteNumber: newDeliveryNote,
-          deliveryDate: new Date().toISOString().split('T')[0],
+          deliveryDate: newDates.submissionDate || todayIso(),
           deliveryLocation: 'Laydown Yard 2',
           storageLocation: 'Warehouse Bay 4B',
           quantityDelivered: newDeliveredQty,
@@ -121,6 +150,7 @@ export function MaterialInspectionsView() {
           result,
           ncrRef: newRejectedQty > 0 ? newNcrRef : undefined,
           remarks: newRemarks || (newRejectedQty > 0 ? `${newRejectedQty} units rejected due to damage. NCR linked.` : 'Inspected and verified against approved submittal.'),
+          ...newDates,
         }),
       });
       const json = await res.json();
@@ -135,21 +165,29 @@ export function MaterialInspectionsView() {
   };
 
   const exportToExcel = () => {
-    const exportData = filteredMirs.map((m, index) => ({
-      '#': index + 1,
-      'MIR Number': m.mirNumber,
-      'Category': m.materialCategory,
-      'Description': m.materialDescription,
-      'Manufacturer': m.manufacturer,
-      'Delivered': m.quantityDelivered,
-      'Accepted': m.quantityAccepted,
-      'Rejected': m.quantityRejected,
-      'Unit': m.unitOfMeasure,
-      'Submittal Ref': m.approvedSubmittalRef,
-      'Result': m.result,
-      'Linked NCR': m.ncrRef || 'None',
-      'Delivery Date': m.deliveryDate,
-    }));
+    const exportData = filteredMirs.map((m, index) => {
+      const sla = calculateSlaStatus(m, currentProject?.reviewDurationDays || 7);
+      return {
+        '#': index + 1,
+        'MIR Number': m.mirNumber,
+        'Category': m.materialCategory,
+        'Description': m.materialDescription,
+        'Manufacturer': m.manufacturer,
+        'Delivered': m.quantityDelivered,
+        'Accepted': m.quantityAccepted,
+        'Rejected': m.quantityRejected,
+        'Unit': m.unitOfMeasure,
+        'Submittal Ref': m.approvedSubmittalRef,
+        'Result': m.result,
+        'SLA Turnaround': sla.label,
+        'Preparation Date': m.preparationDate || 'N/A',
+        'Submission Date': m.submissionDate || 'N/A',
+        'Consultant Response Date': m.consultantResponseDate || 'N/A',
+        'Approval Date': m.approvalDate || 'N/A',
+        'Linked NCR': m.ncrRef || 'None',
+        'Delivery Date': m.deliveryDate,
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -163,8 +201,33 @@ export function MaterialInspectionsView() {
       m.materialDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.manufacturer.toLowerCase().includes(searchQuery.toLowerCase());
     const matchResult = resultFilter === 'ALL' || m.result === resultFilter;
-    return matchSearch && matchResult;
+
+    let matchSla = true;
+    const sla = calculateSlaStatus(m, currentProject?.reviewDurationDays || 7);
+    if (slaFilter === 'AWAITING') matchSla = sla.category === 'AWAITING_SUBMISSION';
+    else if (slaFilter === 'PENDING') matchSla = sla.category === 'PENDING_REVIEW';
+    else if (slaFilter === 'OVERDUE') matchSla = sla.category === 'OVERDUE';
+    else if (slaFilter === 'APPROVED') matchSla = sla.category === 'APPROVED';
+
+    let matchDate = true;
+    if (dateFilter === 'MISSING_DATES') {
+      matchDate = !m.submissionDate || !m.preparationDate || (m.result === 'Accepted' && !m.approvalDate);
+    } else if (dateFilter === 'CORRECTED_DATES') {
+      matchDate = !!m.hasDateCorrections || (!!m.dateCorrectionHistory && m.dateCorrectionHistory.length > 0);
+    } else if (dateFilter === 'WITH_LINKS') {
+      matchDate = (!!m.documentLinks && m.documentLinks.length > 0) || (!!m.linkedApexRecords && m.linkedApexRecords.length > 0);
+    }
+
+    return matchSearch && matchResult && matchSla && matchDate;
   });
+
+  const slaStats = {
+    total: mirs.length,
+    awaiting: mirs.filter(m => calculateSlaStatus(m, currentProject?.reviewDurationDays || 7).category === 'AWAITING_SUBMISSION').length,
+    pending: mirs.filter(m => calculateSlaStatus(m, currentProject?.reviewDurationDays || 7).category === 'PENDING_REVIEW').length,
+    overdue: mirs.filter(m => calculateSlaStatus(m, currentProject?.reviewDurationDays || 7).category === 'OVERDUE').length,
+    approved: mirs.filter(m => calculateSlaStatus(m, currentProject?.reviewDurationDays || 7).category === 'APPROVED').length,
+  };
 
   return (
     <div className="space-y-4">
@@ -181,7 +244,7 @@ export function MaterialInspectionsView() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Material deliveries, accepted vs rejected quantity tracking, MTC validation, and NCR linkage
+            Material deliveries, accepted vs rejected quantity tracking, MTC validation & 8-point SLA turnaround
           </p>
         </div>
 
@@ -202,6 +265,53 @@ export function MaterialInspectionsView() {
             <span>{language === 'ar' ? 'طلب فحص مواد جديد' : 'New MIR'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Quick SLA Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
+          {language === 'ar' ? 'تصفية المهل والاعتماد:' : 'SLA Filter:'}
+        </span>
+        <button
+          onClick={() => setSlaFilter('ALL')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          {language === 'ar' ? 'الكل' : 'All'} ({slaStats.total})
+        </button>
+        <button
+          onClick={() => setSlaFilter('AWAITING')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'AWAITING' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          {language === 'ar' ? 'مسودة' : 'Draft'} ({slaStats.awaiting})
+        </button>
+        <button
+          onClick={() => setSlaFilter('PENDING')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'PENDING' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+          }`}
+        >
+          {language === 'ar' ? 'قيد الفحص' : 'Under Inspection'} ({slaStats.pending})
+        </button>
+        <button
+          onClick={() => setSlaFilter('OVERDUE')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'OVERDUE' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+          }`}
+        >
+          ⚠️ {language === 'ar' ? 'متأخر' : 'Overdue SLA'} ({slaStats.overdue})
+        </button>
+        <button
+          onClick={() => setSlaFilter('APPROVED')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'APPROVED' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+          }`}
+        >
+          ✓ {language === 'ar' ? 'مقبول / معتمد' : 'Accepted / Approved'} ({slaStats.approved})
+        </button>
       </div>
 
       {/* Filter Toolbar */}
@@ -227,6 +337,17 @@ export function MaterialInspectionsView() {
           <option value="Partially Accepted">Partially Accepted</option>
           <option value="Rejected">Rejected</option>
         </select>
+
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value as any)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium"
+        >
+          <option value="ALL">All Date Records</option>
+          <option value="MISSING_DATES">Missing Critical Dates</option>
+          <option value="CORRECTED_DATES">Historical Date Corrections</option>
+          <option value="WITH_LINKS">With External Links / Records</option>
+        </select>
       </div>
 
       {/* MIR Table */}
@@ -238,9 +359,10 @@ export function MaterialInspectionsView() {
                 <th className="py-3 px-3">MIR Number</th>
                 <th className="py-3 px-3">Material Description</th>
                 <th className="py-3 px-3">Manufacturer & Supplier</th>
-                <th className="py-3 px-3">Delivery Date & Note</th>
+                <th className="py-3 px-3">Delivery & Approval Dates</th>
                 <th className="py-3 px-3 text-center">Quantities (Del / Acc / Rej)</th>
                 <th className="py-3 px-3">Inspection Result</th>
+                <th className="py-3 px-3">Turnaround SLA</th>
                 <th className="py-3 px-3">Linked NCR</th>
                 <th className="py-3 px-3 text-right">Actions</th>
               </tr>
@@ -248,42 +370,55 @@ export function MaterialInspectionsView() {
             <tbody className="divide-y divide-slate-100">
               {filteredMirs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    No MIR records found.
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                    No material inspection requests found.
                   </td>
                 </tr>
               ) : (
                 filteredMirs.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50 transition group">
                     <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                      {m.mirNumber}
+                      <button
+                        onClick={() => {
+                          setSelectedMir(m);
+                          setDrawerOpen(true);
+                        }}
+                        className="hover:text-amber-700 hover:underline text-left"
+                      >
+                        {m.mirNumber}
+                      </button>
                     </td>
 
                     <td className="py-3 px-3 max-w-xs">
                       <div className="font-semibold text-slate-800 line-clamp-1">{m.materialDescription}</div>
-                      <div className="text-[11px] text-slate-500 line-clamp-1">Submittal: {m.approvedSubmittalRef}</div>
+                      <div className="text-[11px] text-slate-500 line-clamp-1">{m.materialCategory} • Ref: {m.approvedSubmittalRef}</div>
                     </td>
 
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <div className="font-semibold text-slate-700">{m.manufacturer}</div>
+                    <td className="py-3 px-3 text-slate-700 whitespace-nowrap">
+                      <div className="font-semibold">{m.manufacturer}</div>
                       <div className="text-[10px] text-slate-400">{m.supplier}</div>
                     </td>
 
-                    <td className="py-3 px-3 font-mono text-slate-700 whitespace-nowrap">
-                      <div>{m.deliveryDate}</div>
-                      <span className="text-[10px] text-slate-400">DN: {m.deliveryNoteNumber}</span>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex flex-col text-[11px]">
+                        <span className="text-slate-700">DEL: <b>{formatDateSafe(m.submissionDate || m.deliveryDate)}</b></span>
+                        {m.approvalDate ? (
+                          <span className="text-emerald-700 font-semibold">APP: {formatDateSafe(m.approvalDate)}</span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">Due: {formatDateSafe(m.requiredApprovalDate)}</span>
+                        )}
+                      </div>
                     </td>
 
-                    {/* Quantities Breakdown */}
-                    <td className="py-3 px-3 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5 font-mono text-xs font-bold bg-slate-100 px-2 py-1 rounded">
-                        <span className="text-slate-800" title="Delivered">{m.quantityDelivered}</span>
-                        <span className="text-slate-400">/</span>
-                        <span className="text-emerald-700 font-bold" title="Accepted">{m.quantityAccepted}</span>
-                        <span className="text-slate-400">/</span>
-                        <span className="text-red-600 font-bold" title="Rejected">{m.quantityRejected}</span>
-                        <span className="text-[9px] text-slate-500 font-normal ml-0.5">{m.unitOfMeasure}</span>
-                      </div>
+                    <td className="py-3 px-3 text-center whitespace-nowrap font-mono text-[11px]">
+                      <span className="font-bold text-slate-800">{m.quantityDelivered}</span>
+                      <span className="text-slate-400 mx-1">/</span>
+                      <span className="font-bold text-emerald-700">{m.quantityAccepted}</span>
+                      <span className="text-slate-400 mx-1">/</span>
+                      <span className={`font-bold ${m.quantityRejected > 0 ? 'text-red-700' : 'text-slate-400'}`}>
+                        {m.quantityRejected}
+                      </span>
+                      <div className="text-[10px] text-slate-500 font-sans">{m.unitOfMeasure}</div>
                     </td>
 
                     <td className="py-3 px-3 whitespace-nowrap">
@@ -296,10 +431,14 @@ export function MaterialInspectionsView() {
                       </span>
                     </td>
 
-                    {/* Linked NCR */}
+                    {/* Turnaround SLA */}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <DateStatusBadge dates={m} slaDays={currentProject?.reviewDurationDays || 7} />
+                    </td>
+
                     <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px]">
                       {m.ncrRef ? (
-                        <span className="font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                        <span className="text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
                           {m.ncrRef}
                         </span>
                       ) : (
@@ -308,16 +447,29 @@ export function MaterialInspectionsView() {
                     </td>
 
                     <td className="py-3 px-3 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => {
-                          setSelectedMir(m);
-                          setPrintModalOpen(true);
-                        }}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
-                        title="Print Formal MIR Sheet"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedMir(m);
+                            setDrawerOpen(true);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                          title="View 8-Point Dates Timeline"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSelectedMir(m);
+                            setPrintModalOpen(true);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                          title="Print MIR Sheet"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -327,19 +479,126 @@ export function MaterialInspectionsView() {
         </div>
       </div>
 
+      {/* Drawer for Selected MIR */}
+      {drawerOpen && selectedMir && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-navy-950/60 backdrop-blur-xs animate-in fade-in">
+          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col">
+              <div className="px-6 py-4 bg-navy-900 text-white flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-mono font-bold text-amber-400">
+                    {selectedMir.mirNumber}
+                  </div>
+                  <h2 className="text-sm font-bold truncate max-w-md mt-0.5">
+                    {selectedMir.materialDescription}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-navy-800 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                <DateLifecycleCard 
+                  dates={selectedMir} 
+                  slaDays={currentProject?.reviewDurationDays || 7}
+                  moduleId="mirs"
+                  recordId={selectedMir.id}
+                  recordRef={selectedMir.mirNumber}
+                  onDatesUpdated={(updated) => {
+                    setSelectedMir(updated);
+                    fetchMirs();
+                  }}
+                  language={language}
+                />
+
+                {/* Universal Documents & References + Linked APEX Records */}
+                <UniversalDocumentLinks
+                  moduleId="mirs"
+                  recordId={selectedMir.id}
+                  recordRef={selectedMir.mirNumber}
+                  documentLinks={selectedMir.documentLinks || []}
+                  linkedApexRecords={selectedMir.linkedApexRecords || []}
+                  legacyAttachments={selectedMir.attachments || []}
+                  projectId={currentProjectId}
+                  onUpdated={(updated) => {
+                    setSelectedMir(updated);
+                    fetchMirs();
+                  }}
+                  language={language}
+                />
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-3">
+                    Consignment Breakdown
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Manufacturer</span>
+                      <span className="font-semibold text-slate-800">{selectedMir.manufacturer}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Supplier</span>
+                      <span className="font-semibold text-slate-800">{selectedMir.supplier}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Approved Submittal</span>
+                      <span className="font-mono font-semibold text-slate-800">{selectedMir.approvedSubmittalRef}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Delivery Note</span>
+                      <span className="font-mono font-semibold text-slate-800">{selectedMir.deliveryNoteNumber}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Immutable Audit Trail for this MIR */}
+                <RecordAuditHistory
+                  recordId={selectedMir.id}
+                  recordRef={selectedMir.mirNumber}
+                  projectId={currentProjectId}
+                  language={language}
+                />
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    setPrintModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold"
+                >
+                  Print MIR Slip
+                </button>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-1.5 rounded bg-navy-900 text-white font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Modal */}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 bg-navy-900 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-sm">Create Material Inspection Request (MIR)</h3>
-                <div className="text-[11px] text-slate-300">Record incoming site delivery & quantity verification</div>
+                <h3 className="font-bold text-sm">Material Inspection Request (MIR)</h3>
+                <div className="text-[11px] text-slate-300">Incoming site delivery verification & 8-point date tracking</div>
               </div>
               <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
-            <form onSubmit={handleCreateMir} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleCreateMir} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Generated MIR Number</label>
                 <input
@@ -357,10 +616,33 @@ export function MaterialInspectionsView() {
                   type="text"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="e.g. ASTM A53 Grade B Seamless Carbon Steel Firefighting Pipes"
+                  placeholder="e.g. Schedule 40 Seamless Carbon Steel Pipe 150mm Dia with MTC Certs"
                   className="w-full border border-slate-300 rounded p-2 text-xs"
                   required
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full border border-slate-300 rounded p-2 text-xs"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Approved Submittal Reference</label>
+                  <input
+                    type="text"
+                    value={newSubmittalRef}
+                    onChange={(e) => setNewSubmittalRef(e.target.value)}
+                    className="w-full border border-slate-300 rounded p-2 text-xs font-mono"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -371,29 +653,6 @@ export function MaterialInspectionsView() {
                     value={newManufacturer}
                     onChange={(e) => setNewManufacturer(e.target.value)}
                     className="w-full border border-slate-300 rounded p-2 text-xs"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Supplier</label>
-                  <input
-                    type="text"
-                    value={newSupplier}
-                    onChange={(e) => setNewSupplier(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Approved Submittal Ref</label>
-                  <input
-                    type="text"
-                    value={newSubmittalRef}
-                    onChange={(e) => setNewSubmittalRef(e.target.value)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs font-mono"
                     required
                   />
                 </div>
@@ -409,51 +668,44 @@ export function MaterialInspectionsView() {
                 </div>
               </div>
 
-              {/* Quantities Grid */}
-              <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded border">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Delivered Qty</label>
                   <input
                     type="number"
                     value={newDeliveredQty}
                     onChange={(e) => setNewDeliveredQty(Number(e.target.value))}
-                    className="w-full border border-slate-300 rounded p-1.5 text-xs font-mono font-bold"
+                    className="w-full border border-slate-300 rounded p-2 text-xs font-mono"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-emerald-700 mb-1">Accepted Qty</label>
+                  <label className="block font-bold text-slate-700 mb-1">Accepted Qty</label>
                   <input
                     type="number"
                     value={newAcceptedQty}
                     onChange={(e) => setNewAcceptedQty(Number(e.target.value))}
-                    className="w-full border border-emerald-300 rounded p-1.5 text-xs font-mono font-bold text-emerald-800"
+                    className="w-full border border-slate-300 rounded p-2 text-xs font-mono"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-red-700 mb-1">Rejected Qty</label>
+                  <label className="block font-bold text-slate-700 mb-1">Rejected Qty</label>
                   <input
                     type="number"
                     value={newRejectedQty}
                     onChange={(e) => setNewRejectedQty(Number(e.target.value))}
-                    className="w-full border border-red-300 rounded p-1.5 text-xs font-mono font-bold text-red-800"
+                    className="w-full border border-slate-300 rounded p-2 text-xs font-mono"
                     required
                   />
                 </div>
               </div>
 
-              {newRejectedQty > 0 && (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded">
-                  <label className="block font-bold text-red-800 mb-1">Auto-Linked NCR Number</label>
-                  <input
-                    type="text"
-                    value={newNcrRef}
-                    onChange={(e) => setNewNcrRef(e.target.value)}
-                    className="w-full bg-white border border-red-300 rounded p-1.5 text-xs font-mono font-bold text-red-800"
-                  />
-                </div>
-              )}
+              {/* 8-Point Dates */}
+              <DateInputsFormSection
+                dates={newDates}
+                onChange={setNewDates}
+              />
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button
@@ -467,7 +719,7 @@ export function MaterialInspectionsView() {
                   type="submit"
                   className="px-4 py-2 rounded bg-amber-500 hover:bg-amber-600 text-navy-950 font-bold"
                 >
-                  Record Inspection & Issue MIR
+                  Record Material Delivery & Inspection
                 </button>
               </div>
             </form>
@@ -475,10 +727,10 @@ export function MaterialInspectionsView() {
         </div>
       )}
 
-      {/* Printable Sheet */}
+      {/* Printable Sheet Modal */}
       <PrintableDocumentModal
         docType="MIR_FORM"
-        title="MATERIAL INSPECTION REQUEST (MIR)"
+        title="MATERIAL INSPECTION REQUEST & DELIVERY REPORT (MIR)"
         data={selectedMir}
         isOpen={printModalOpen}
         onClose={() => setPrintModalOpen(false)}

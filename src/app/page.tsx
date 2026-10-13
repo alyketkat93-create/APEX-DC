@@ -10,7 +10,7 @@ import { QuickCreateModal } from '@/components/layout/QuickCreateModal';
 // Dedicated Module Views
 import { ExecutiveDashboardView } from '@/components/modules/ExecutiveDashboardView';
 import { ProjectsView } from '@/components/modules/ProjectsView';
-import { DrawingsView } from '@/components/modules/DrawingsView';
+import { DrawingsSubmissionsView } from '@/components/modules/DrawingsSubmissionsView';
 import { SubmittalsView } from '@/components/modules/SubmittalsView';
 import { InspectionRequestsView } from '@/components/modules/InspectionRequestsView';
 import { MaterialInspectionsView } from '@/components/modules/MaterialInspectionsView';
@@ -41,7 +41,7 @@ export default function HomePage() {
     else if (actionType === 'new_ncr') setCurrentModule('quality');
     else if (actionType === 'new_letter') setCurrentModule('correspondence');
     else if (actionType === 'new_rfi') setCurrentModule('rfis');
-    else if (actionType === 'new_transmittal') setCurrentModule('transmittals');
+    else if (actionType === 'new_transmittal') setCurrentModule('drawings');
     else if (actionType === 'new_meeting') setCurrentModule('meetings');
     else if (actionType === 'new_task') setCurrentModule('tasks');
     else if (actionType === 'new_project') setCurrentModule('projects');
@@ -75,14 +75,15 @@ export default function HomePage() {
               <ExecutiveDashboardView onNavigateModule={setCurrentModule} />
             )}
             {currentModule === 'projects' && <ProjectsView />}
-            {currentModule === 'drawings' && <DrawingsView />}
+            {(currentModule === 'drawings' || currentModule === 'transmittals') && (
+              <DrawingsSubmissionsView />
+            )}
             {currentModule === 'submittals' && <SubmittalsView />}
             {currentModule === 'irs' && <InspectionRequestsView />}
             {currentModule === 'mirs' && <MaterialInspectionsView />}
             {currentModule === 'quality' && <QualityView />}
             {currentModule === 'correspondence' && <CorrespondenceView />}
             {currentModule === 'rfis' && <RfisView />}
-            {currentModule === 'transmittals' && <TransmittalsView />}
             {currentModule === 'meetings' && <MeetingsView />}
             {currentModule === 'variations' && <VariationsView />}
             {currentModule === 'handover' && <HandoverView />}

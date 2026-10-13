@@ -3,10 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { 
-  Project, Drawing, TechnicalSubmittal, InspectionRequest, 
+  Project, Drawing, DrawingRevision, ReviewStatus, TechnicalSubmittal, InspectionRequest, 
   MaterialInspectionRequest, QualityRecord, Correspondence, 
   Rfi, Transmittal, Meeting, SiteInstruction, HandoverItem, 
-  Task, CustomModuleDefinition, CustomRecord, User, AuditEvent, NotificationItem 
+  Task, CustomModuleDefinition, CustomRecord, User, AuditEvent, NotificationItem,
+  DocumentLink, LinkedApexRecord, DateCorrectionLog, DocumentLifecycleDates, ApexRecordType
 } from '@/types';
 import { 
   initialProjects, initialDrawings, initialSubmittals, 
@@ -174,6 +175,22 @@ class DatabaseEngine {
     return `${prjCode}-${discCode}-${typeCode}-${seqPadded}`;
   }
 
+  private getToday(): string {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  private calculateDeadline(dateStr?: string, days: number = 14): string | undefined {
+    if (!dateStr) return undefined;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return undefined;
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split('T')[0];
+    } catch {
+      return undefined;
+    }
+  }
+
   // --- Projects ---
   public getProjects(): Project[] {
     return this.projects;
@@ -246,12 +263,49 @@ class DatabaseEngine {
   }
 
   public createDrawing(drawing: Omit<Drawing, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): Drawing {
+    const today = this.getToday();
+    const project = this.getProjectById(drawing.projectId);
+    const slaDays = project?.reviewDurationDays || 14;
+
+    const prepDate = drawing.preparationDate || today;
+    const revDate = drawing.revisionDate || today;
+    const subDate = drawing.submissionDate;
+    const reqAppDate = drawing.requiredApprovalDate || (subDate ? this.calculateDeadline(subDate, slaDays) : undefined);
+
+    const initialRevision: DrawingRevision = {
+      id: `drw-rev-${uuidv4().substring(0, 8)}`,
+      drawingId: '',
+      revisionNumber: drawing.currentRevision || 'P01',
+      preparationDate: prepDate,
+      internalReviewDate: drawing.internalReviewDate,
+      submissionDate: subDate || today,
+      plannedSubmissionDate: drawing.plannedSubmissionDate,
+      consultantReceiptDate: drawing.consultantReceiptDate,
+      requiredApprovalDate: reqAppDate,
+      consultantResponseDate: drawing.consultantResponseDate,
+      approvalDate: drawing.approvalDate,
+      revisionDate: revDate,
+      closureDate: drawing.closureDate,
+      status: drawing.reviewStatus || 'Submitted to Consultant',
+      approvalCode: drawing.approvalCode,
+      comments: drawing.reviewComments || 'Initial revision created',
+      reviewer: drawing.reviewer,
+      createdAt: new Date().toISOString(),
+    };
+
     const newDrawing: Drawing = {
       ...drawing,
       id: `drw-${uuidv4().substring(0, 8)}`,
+      preparationDate: prepDate,
+      revisionDate: revDate,
+      submissionDate: subDate,
+      requiredApprovalDate: reqAppDate,
+      revisions: drawing.revisions && drawing.revisions.length > 0 ? drawing.revisions : [initialRevision],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    newDrawing.revisions[0].drawingId = newDrawing.id;
+
     this.drawings.unshift(newDrawing);
     writeCollection('drawings', this.drawings);
 
@@ -273,9 +327,44 @@ class DatabaseEngine {
     const idx = this.drawings.findIndex(d => d.id === id);
     if (idx === -1) return null;
     const old = this.drawings[idx];
+    const today = this.getToday();
+    const project = this.getProjectById(old.projectId);
+    const slaDays = project?.reviewDurationDays || 14;
+
+    const finalUpdates = { ...updates };
+
+    // Submission transition
+    if ((updates.reviewStatus === 'Submitted to Consultant' || updates.reviewStatus === 'Under Review' || updates.reviewStatus === 'Pending Consultant Review') &&
+        !updates.submissionDate && !old.submissionDate) {
+      finalUpdates.submissionDate = today;
+    }
+    if (finalUpdates.submissionDate && !finalUpdates.requiredApprovalDate && !old.requiredApprovalDate) {
+      finalUpdates.requiredApprovalDate = this.calculateDeadline(finalUpdates.submissionDate, slaDays);
+    }
+
+    // Consultant Receipt transition
+    if (updates.consultantReceiptDate === undefined && updates.reviewStatus === 'Under Review' && !old.consultantReceiptDate) {
+      finalUpdates.consultantReceiptDate = today;
+    }
+
+    // Approval transition
+    const isApproved = updates.approvalCode === 'A' || updates.approvalCode === 'B' || 
+                       updates.reviewStatus?.includes('Approved') || updates.reviewStatus === 'Code A - Approved' || updates.reviewStatus === 'Code B - Approved as Noted';
+    if (isApproved) {
+      if (!updates.approvalDate && !old.approvalDate) finalUpdates.approvalDate = today;
+      if (!updates.consultantResponseDate && !old.consultantResponseDate) finalUpdates.consultantResponseDate = today;
+    } else if (updates.approvalCode === 'C' || updates.approvalCode === 'D' || updates.reviewStatus?.includes('Rejected') || updates.reviewStatus?.includes('Revise')) {
+      if (!updates.consultantResponseDate && !old.consultantResponseDate) finalUpdates.consultantResponseDate = today;
+    }
+
+    // Closure transition
+    if ((updates.reviewStatus === 'Closed' || updates.reviewStatus === 'As-Built Accepted') && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
     this.drawings[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('drawings', this.drawings);
@@ -296,16 +385,60 @@ class DatabaseEngine {
     return this.drawings[idx];
   }
 
-  public addDrawingRevision(id: string, revisionData: { revisionNumber: string; status: any; approvalCode?: any; comments?: string; reviewer?: string; fileName?: string; fileUrl?: string; transmittalNumber?: string }, userId: string = 'usr-1', userName: string = 'Admin'): Drawing | null {
+  public addDrawingRevision(
+    id: string, 
+    revisionData: { 
+      revisionNumber: string; 
+      status: any; 
+      approvalCode?: any; 
+      comments?: string; 
+      reviewer?: string; 
+      fileName?: string; 
+      fileUrl?: string; 
+      transmittalNumber?: string;
+      preparationDate?: string;
+      internalReviewDate?: string;
+      submissionDate?: string;
+      plannedSubmissionDate?: string;
+      consultantReceiptDate?: string;
+      requiredApprovalDate?: string;
+      consultantResponseDate?: string;
+      approvalDate?: string;
+      revisionDate?: string;
+      closureDate?: string;
+    }, 
+    userId: string = 'usr-1', 
+    userName: string = 'Admin'
+  ): Drawing | null {
     const idx = this.drawings.findIndex(d => d.id === id);
     if (idx === -1) return null;
     const drawing = this.drawings[idx];
+    const today = this.getToday();
+    const project = this.getProjectById(drawing.projectId);
+    const slaDays = project?.reviewDurationDays || 14;
 
-    const newRev = {
+    const revDate = revisionData.revisionDate || today;
+    const subDate = revisionData.submissionDate || today;
+    const reqAppDate = revisionData.requiredApprovalDate || this.calculateDeadline(subDate, slaDays);
+    const isApproved = revisionData.approvalCode === 'A' || revisionData.approvalCode === 'B' || 
+                       revisionData.status === 'Code A - Approved' || revisionData.status === 'Code B - Approved as Noted';
+    const appDate = isApproved ? (revisionData.approvalDate || today) : revisionData.approvalDate;
+    const respDate = isApproved || revisionData.approvalCode ? (revisionData.consultantResponseDate || today) : revisionData.consultantResponseDate;
+
+    const newRev: DrawingRevision = {
       id: `drw-rev-${uuidv4().substring(0, 8)}`,
       drawingId: id,
       revisionNumber: revisionData.revisionNumber,
-      submissionDate: new Date().toISOString().split('T')[0],
+      preparationDate: revisionData.preparationDate || drawing.preparationDate || today,
+      internalReviewDate: revisionData.internalReviewDate,
+      submissionDate: subDate,
+      plannedSubmissionDate: revisionData.plannedSubmissionDate || drawing.plannedSubmissionDate,
+      consultantReceiptDate: revisionData.consultantReceiptDate,
+      requiredApprovalDate: reqAppDate,
+      consultantResponseDate: respDate,
+      approvalDate: appDate,
+      revisionDate: revDate,
+      closureDate: revisionData.closureDate,
       status: revisionData.status,
       approvalCode: revisionData.approvalCode,
       comments: revisionData.comments,
@@ -320,10 +453,16 @@ class DatabaseEngine {
     this.drawings[idx] = {
       ...drawing,
       currentRevision: revisionData.revisionNumber,
-      revisionDate: new Date().toISOString().split('T')[0],
+      revisionDate: revDate,
+      submissionDate: subDate,
+      requiredApprovalDate: reqAppDate,
+      consultantResponseDate: respDate,
+      approvalDate: appDate,
       reviewStatus: revisionData.status,
       approvalCode: revisionData.approvalCode,
       reviewComments: revisionData.comments,
+      reviewer: revisionData.reviewer || drawing.reviewer,
+      relatedTransmittal: revisionData.transmittalNumber || drawing.relatedTransmittal,
       revisions,
       updatedAt: new Date().toISOString(),
     };
@@ -356,9 +495,21 @@ class DatabaseEngine {
   }
 
   public createSubmittal(submittal: Omit<TechnicalSubmittal, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): TechnicalSubmittal {
+    const today = this.getToday();
+    const project = this.getProjectById(submittal.projectId);
+    const slaDays = project?.reviewDurationDays || 14;
+
+    const prepDate = submittal.preparationDate || today;
+    const subDate = submittal.submissionDate;
+    const reqAppDate = submittal.requiredApprovalDate || (subDate ? this.calculateDeadline(subDate, slaDays) : undefined);
+
     const newSub: TechnicalSubmittal = {
       ...submittal,
       id: `sub-${uuidv4().substring(0, 8)}`,
+      preparationDate: prepDate,
+      submissionDate: subDate,
+      requiredApprovalDate: reqAppDate,
+      revisionDate: submittal.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -383,9 +534,34 @@ class DatabaseEngine {
     const idx = this.submittals.findIndex(s => s.id === id);
     if (idx === -1) return null;
     const old = this.submittals[idx];
+    const today = this.getToday();
+    const project = this.getProjectById(old.projectId);
+    const slaDays = project?.reviewDurationDays || 14;
+
+    const finalUpdates = { ...updates };
+
+    if ((updates.reviewStatus === 'Submitted to Consultant' || updates.reviewStatus === 'Under Review' || updates.reviewStatus === 'Pending Consultant Review') && !updates.submissionDate && !old.submissionDate) {
+      finalUpdates.submissionDate = today;
+    }
+    if (finalUpdates.submissionDate && !finalUpdates.requiredApprovalDate && !old.requiredApprovalDate) {
+      finalUpdates.requiredApprovalDate = this.calculateDeadline(finalUpdates.submissionDate, slaDays);
+    }
+
+    const isApproved = updates.approvalCode === 'A' || updates.approvalCode === 'B' || updates.reviewStatus?.includes('Approved');
+    if (isApproved) {
+      if (!updates.approvalDate && !old.approvalDate) finalUpdates.approvalDate = today;
+      if (!updates.consultantResponseDate && !old.consultantResponseDate) finalUpdates.consultantResponseDate = today;
+    } else if (updates.approvalCode === 'C' || updates.approvalCode === 'D' || updates.reviewStatus?.includes('Rejected') || updates.reviewStatus?.includes('Revise')) {
+      if (!updates.consultantResponseDate && !old.consultantResponseDate) finalUpdates.consultantResponseDate = today;
+    }
+
+    if (updates.reviewStatus === 'Closed' && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
     this.submittals[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('submittals', this.submittals);
@@ -417,9 +593,18 @@ class DatabaseEngine {
   }
 
   public createInspectionRequest(ir: Omit<InspectionRequest, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): InspectionRequest {
+    const today = this.getToday();
+    const project = this.getProjectById(ir.projectId);
+    const slaDays = project?.reviewDurationDays || 7;
+    const subDate = ir.submissionDate || ir.contractorRequestDate || today;
+
     const newIr: InspectionRequest = {
       ...ir,
       id: `ir-${uuidv4().substring(0, 8)}`,
+      preparationDate: ir.preparationDate || today,
+      submissionDate: subDate,
+      requiredApprovalDate: ir.requiredApprovalDate || this.calculateDeadline(subDate, slaDays),
+      revisionDate: ir.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -444,9 +629,22 @@ class DatabaseEngine {
     const idx = this.irs.findIndex(i => i.id === id);
     if (idx === -1) return null;
     const old = this.irs[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    if ((updates.result === 'Accepted' || updates.result === 'Accepted with Comments') && !updates.approvalDate && !old.approvalDate) {
+      finalUpdates.approvalDate = today;
+      finalUpdates.consultantResponseDate = today;
+    } else if (updates.result === 'Rejected' && !updates.consultantResponseDate && !old.consultantResponseDate) {
+      finalUpdates.consultantResponseDate = today;
+    }
+    if (updates.result === 'Closed' && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
     this.irs[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('irs', this.irs);
@@ -478,9 +676,18 @@ class DatabaseEngine {
   }
 
   public createMaterialInspection(mir: Omit<MaterialInspectionRequest, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): MaterialInspectionRequest {
+    const today = this.getToday();
+    const project = this.getProjectById(mir.projectId);
+    const slaDays = project?.reviewDurationDays || 7;
+    const subDate = mir.submissionDate || mir.deliveryDate || today;
+
     const newMir: MaterialInspectionRequest = {
       ...mir,
       id: `mir-${uuidv4().substring(0, 8)}`,
+      preparationDate: mir.preparationDate || today,
+      submissionDate: subDate,
+      requiredApprovalDate: mir.requiredApprovalDate || this.calculateDeadline(subDate, slaDays),
+      revisionDate: mir.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -505,9 +712,22 @@ class DatabaseEngine {
     const idx = this.mirs.findIndex(m => m.id === id);
     if (idx === -1) return null;
     const old = this.mirs[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    if ((updates.result === 'Accepted' || updates.result === 'Partially Accepted') && !updates.approvalDate && !old.approvalDate) {
+      finalUpdates.approvalDate = today;
+      finalUpdates.consultantResponseDate = today;
+    } else if (updates.result === 'Rejected' && !updates.consultantResponseDate && !old.consultantResponseDate) {
+      finalUpdates.consultantResponseDate = today;
+    }
+    if (updates.result === 'Closed' && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
     this.mirs[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('mirs', this.mirs);
@@ -539,9 +759,15 @@ class DatabaseEngine {
   }
 
   public createQualityRecord(record: Omit<QualityRecord, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): QualityRecord {
+    const today = this.getToday();
+    const subDate = record.submissionDate || record.issueDate || today;
+
     const newRec: QualityRecord = {
       ...record,
       id: `rec-${uuidv4().substring(0, 8)}`,
+      preparationDate: record.preparationDate || today,
+      submissionDate: subDate,
+      revisionDate: record.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -566,9 +792,16 @@ class DatabaseEngine {
     const idx = this.quality.findIndex(q => q.id === id);
     if (idx === -1) return null;
     const old = this.quality[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    if ((updates.status === 'Closed' || updates.status === 'Accepted') && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
     this.quality[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('quality', this.quality);
@@ -600,9 +833,15 @@ class DatabaseEngine {
   }
 
   public createCorrespondence(cor: Omit<Correspondence, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): Correspondence {
+    const today = this.getToday();
+    const subDate = cor.submissionDate || cor.letterDate || today;
+
     const newCor: Correspondence = {
       ...cor,
       id: `cor-${uuidv4().substring(0, 8)}`,
+      preparationDate: cor.preparationDate || today,
+      submissionDate: subDate,
+      revisionDate: cor.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -627,9 +866,19 @@ class DatabaseEngine {
     const idx = this.correspondence.findIndex(c => c.id === id);
     if (idx === -1) return null;
     const old = this.correspondence[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    if ((updates.status === 'Responded' || updates.status === 'Closed') && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+      if (!updates.consultantResponseDate && !old.consultantResponseDate) {
+        finalUpdates.consultantResponseDate = today;
+      }
+    }
+
     this.correspondence[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('correspondence', this.correspondence);
@@ -660,9 +909,18 @@ class DatabaseEngine {
   }
 
   public createRfi(rfi: Omit<Rfi, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): Rfi {
+    const today = this.getToday();
+    const project = this.getProjectById(rfi.projectId);
+    const slaDays = project?.reviewDurationDays || 7;
+    const subDate = rfi.submissionDate || rfi.dateRaised || today;
+
     const newRfi: Rfi = {
       ...rfi,
       id: `rfi-${uuidv4().substring(0, 8)}`,
+      preparationDate: rfi.preparationDate || today,
+      submissionDate: subDate,
+      requiredApprovalDate: rfi.requiredApprovalDate || rfi.requiredResponseDate || this.calculateDeadline(subDate, slaDays),
+      revisionDate: rfi.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -687,9 +945,19 @@ class DatabaseEngine {
     const idx = this.rfis.findIndex(r => r.id === id);
     if (idx === -1) return null;
     const old = this.rfis[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    if ((updates.status === 'Answered' || updates.consultantResponse) && !updates.consultantResponseDate && !old.consultantResponseDate) {
+      finalUpdates.consultantResponseDate = today;
+    }
+    if (updates.status === 'Closed' && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
     this.rfis[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('rfis', this.rfis);
@@ -721,14 +989,77 @@ class DatabaseEngine {
   }
 
   public createTransmittal(transmittal: Omit<Transmittal, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): Transmittal {
+    const today = this.getToday();
+    const project = this.getProjectById(transmittal.projectId);
+    const slaDays = project?.reviewDurationDays || 14;
+
+    const subDate = transmittal.submissionDate || transmittal.transmittalDate || today;
+    const reqAppDate = transmittal.requiredApprovalDate || this.calculateDeadline(subDate, slaDays);
+
     const newTr: Transmittal = {
       ...transmittal,
       id: `trn-${uuidv4().substring(0, 8)}`,
+      preparationDate: transmittal.preparationDate || today,
+      submissionDate: subDate,
+      requiredApprovalDate: reqAppDate,
+      revisionDate: transmittal.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     this.transmittals.unshift(newTr);
     writeCollection('transmittals', this.transmittals);
+
+    // Link relevant drawings & revisions from transmittal.documentList
+    // MANDATORY RULE: Sending a document NEVER automatically marks it as approved.
+    if (newTr.documentList && Array.isArray(newTr.documentList)) {
+      let drawingsModified = false;
+      for (const docItem of newTr.documentList) {
+        if (!docItem.docNumber) continue;
+        const dIdx = this.drawings.findIndex(d => 
+          d.projectId === newTr.projectId && 
+          (d.drawingNumber === docItem.docNumber || docItem.docNumber.startsWith(d.drawingNumber))
+        );
+        if (dIdx !== -1) {
+          const drw = this.drawings[dIdx];
+          // Preserve approved status if already approved, otherwise set to Pending Consultant Review
+          const targetStatus = (drw.reviewStatus?.includes('Approved') || drw.approvalCode === 'A' || drw.approvalCode === 'B')
+            ? drw.reviewStatus
+            : 'Pending Consultant Review';
+
+          const updatedRevisions = (drw.revisions || []).map(r => {
+            if (r.revisionNumber === docItem.revision || !docItem.revision) {
+              return {
+                ...r,
+                transmittalId: newTr.id,
+                transmittalNumber: newTr.transmittalNumber,
+                submissionDate: subDate,
+                requiredApprovalDate: reqAppDate,
+                // NEVER mark approved on transmittal send!
+                status: (r.status?.includes('Approved') || r.approvalCode === 'A' || r.approvalCode === 'B') 
+                  ? r.status 
+                  : 'Pending Consultant Review',
+              };
+            }
+            return r;
+          });
+
+          this.drawings[dIdx] = {
+            ...drw,
+            submissionDate: subDate,
+            requiredApprovalDate: reqAppDate,
+            relatedTransmittal: newTr.transmittalNumber,
+            relatedTransmittalId: newTr.transmittalNumber,
+            reviewStatus: targetStatus as ReviewStatus,
+            revisions: updatedRevisions,
+            updatedAt: new Date().toISOString(),
+          };
+          drawingsModified = true;
+        }
+      }
+      if (drawingsModified) {
+        writeCollection('drawings', this.drawings);
+      }
+    }
 
     this.logAudit({
       projectId: newTr.projectId,
@@ -738,7 +1069,7 @@ class DatabaseEngine {
       action: 'CREATE',
       userId,
       userName,
-      newValue: `Created Transmittal: ${newTr.transmittalNumber} (${newTr.documentList.length} documents)`,
+      newValue: `Created Transmittal: ${newTr.transmittalNumber} (${newTr.documentList?.length || 0} documents) - Status: ${newTr.status}`,
     });
 
     return newTr;
@@ -748,12 +1079,43 @@ class DatabaseEngine {
     const idx = this.transmittals.findIndex(t => t.id === id);
     if (idx === -1) return null;
     const old = this.transmittals[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    // If consultant receipt acknowledged
+    if ((updates.receiptAcknowledged || updates.status === 'Received by Consultant') && !updates.consultantReceiptDate && !old.consultantReceiptDate) {
+      finalUpdates.consultantReceiptDate = today;
+    }
+    // If consultant responded
+    if ((updates.status === 'Under Review' || updates.status === 'Reviewed') && !updates.consultantResponseDate && !old.consultantResponseDate) {
+      finalUpdates.consultantResponseDate = today;
+    }
+
     this.transmittals[idx] = {
       ...old,
-      ...updates,
+      ...finalUpdates,
       updatedAt: new Date().toISOString(),
     };
     writeCollection('transmittals', this.transmittals);
+
+    // Sync receipt date to linked drawings if consultant acknowledged receipt
+    if (finalUpdates.consultantReceiptDate && !old.consultantReceiptDate && old.documentList) {
+      let drawingsModified = false;
+      for (const docItem of old.documentList) {
+        const dIdx = this.drawings.findIndex(d => 
+          d.projectId === old.projectId && (d.drawingNumber === docItem.docNumber || docItem.docNumber.startsWith(d.drawingNumber))
+        );
+        if (dIdx !== -1) {
+          this.drawings[dIdx] = {
+            ...this.drawings[dIdx],
+            consultantReceiptDate: finalUpdates.consultantReceiptDate,
+            updatedAt: new Date().toISOString(),
+          };
+          drawingsModified = true;
+        }
+      }
+      if (drawingsModified) writeCollection('drawings', this.drawings);
+    }
 
     this.logAudit({
       projectId: old.projectId,
@@ -867,9 +1229,13 @@ class DatabaseEngine {
   }
 
   public createHandoverItem(item: Omit<HandoverItem, 'id' | 'createdAt' | 'updatedAt'>, userId: string = 'usr-1', userName: string = 'Admin'): HandoverItem {
+    const today = this.getToday();
     const newItem: HandoverItem = {
       ...item,
       id: `ho-${uuidv4().substring(0, 8)}`,
+      preparationDate: item.preparationDate || today,
+      submissionDate: item.submissionDate || today,
+      revisionDate: item.revisionDate || today,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -888,6 +1254,43 @@ class DatabaseEngine {
     });
 
     return newItem;
+  }
+
+  public updateHandoverItem(id: string, updates: Partial<HandoverItem>, userId: string = 'usr-1', userName: string = 'Admin'): HandoverItem | null {
+    const idx = this.handover.findIndex(h => h.id === id);
+    if (idx === -1) return null;
+    const old = this.handover[idx];
+    const today = this.getToday();
+
+    const finalUpdates = { ...updates };
+    if ((updates.approvalStatus === 'Approved' || updates.approvalStatus === 'Handed Over' || updates.consultantReviewStatus === 'Approved') && !updates.approvalDate && !old.approvalDate) {
+      finalUpdates.approvalDate = today;
+      finalUpdates.consultantResponseDate = today;
+    }
+    if ((updates.approvalStatus === 'Handed Over' || updates.completionPercent === 100) && !updates.closureDate && !old.closureDate) {
+      finalUpdates.closureDate = today;
+    }
+
+    this.handover[idx] = {
+      ...old,
+      ...finalUpdates,
+      updatedAt: new Date().toISOString(),
+    };
+    writeCollection('handover', this.handover);
+
+    this.logAudit({
+      projectId: old.projectId,
+      moduleId: 'handover',
+      recordId: id,
+      recordRef: old.itemNumber,
+      action: 'UPDATE',
+      userId,
+      userName,
+      previousValue: `Status: ${old.approvalStatus} (${old.completionPercent}%)`,
+      newValue: `Status: ${this.handover[idx].approvalStatus} (${this.handover[idx].completionPercent}%)`,
+    });
+
+    return this.handover[idx];
   }
 
   // --- Tasks ---
@@ -1014,6 +1417,429 @@ class DatabaseEngine {
   // --- Users ---
   public getUsers(): User[] {
     return this.users;
+  }
+
+  // --- Universal Record Lookup & Date / Link Engine ---
+  public getRecordByModuleAndId(moduleId: string, id: string): { record: any; collectionName: string; ref: string; projectId?: string } | null {
+    switch (moduleId) {
+      case 'drawings': {
+        const r = this.drawings.find(x => x.id === id || x.drawingNumber === id);
+        return r ? { record: r, collectionName: 'drawings', ref: r.drawingNumber, projectId: r.projectId } : null;
+      }
+      case 'submittals': {
+        const r = this.submittals.find(x => x.id === id || x.submittalNumber === id);
+        return r ? { record: r, collectionName: 'submittals', ref: r.submittalNumber, projectId: r.projectId } : null;
+      }
+      case 'irs': {
+        const r = this.irs.find(x => x.id === id || x.irNumber === id);
+        return r ? { record: r, collectionName: 'irs', ref: r.irNumber, projectId: r.projectId } : null;
+      }
+      case 'mirs': {
+        const r = this.mirs.find(x => x.id === id || x.mirNumber === id);
+        return r ? { record: r, collectionName: 'mirs', ref: r.mirNumber, projectId: r.projectId } : null;
+      }
+      case 'correspondence': {
+        const r = this.correspondence.find(x => x.id === id || x.correspondenceNumber === id);
+        return r ? { record: r, collectionName: 'correspondence', ref: r.correspondenceNumber, projectId: r.projectId } : null;
+      }
+      case 'rfis': {
+        const r = this.rfis.find(x => x.id === id || x.rfiNumber === id);
+        return r ? { record: r, collectionName: 'rfis', ref: r.rfiNumber, projectId: r.projectId } : null;
+      }
+      case 'quality': {
+        const r = this.quality.find(x => x.id === id || x.recordNumber === id);
+        return r ? { record: r, collectionName: 'quality', ref: r.recordNumber, projectId: r.projectId } : null;
+      }
+      case 'transmittals': {
+        const r = this.transmittals.find(x => x.id === id || x.transmittalNumber === id);
+        return r ? { record: r, collectionName: 'transmittals', ref: r.transmittalNumber, projectId: r.projectId } : null;
+      }
+      case 'handover': {
+        const r = this.handover.find(x => x.id === id || x.itemNumber === id);
+        return r ? { record: r, collectionName: 'handover', ref: r.itemNumber, projectId: r.projectId } : null;
+      }
+      case 'siteInstructions':
+      case 'variations': {
+        const r = this.siteInstructions.find(x => x.id === id || x.instructionNumber === id);
+        return r ? { record: r, collectionName: 'siteInstructions', ref: r.instructionNumber, projectId: r.projectId } : null;
+      }
+      case 'meetings': {
+        const r = this.meetings.find(x => x.id === id || x.meetingNumber === id);
+        return r ? { record: r, collectionName: 'meetings', ref: r.meetingNumber, projectId: r.projectId } : null;
+      }
+      default: {
+        const r = this.customRecords.find(x => x.id === id || x.recordNumber === id);
+        return r ? { record: r, collectionName: 'customRecords', ref: r.recordNumber, projectId: r.projectId } : null;
+      }
+    }
+  }
+
+  public saveRecordByModule(collectionName: string) {
+    switch (collectionName) {
+      case 'drawings': writeCollection('drawings', this.drawings); break;
+      case 'submittals': writeCollection('submittals', this.submittals); break;
+      case 'irs': writeCollection('irs', this.irs); break;
+      case 'mirs': writeCollection('mirs', this.mirs); break;
+      case 'correspondence': writeCollection('correspondence', this.correspondence); break;
+      case 'rfis': writeCollection('rfis', this.rfis); break;
+      case 'quality': writeCollection('quality', this.quality); break;
+      case 'transmittals': writeCollection('transmittals', this.transmittals); break;
+      case 'handover': writeCollection('handover', this.handover); break;
+      case 'siteInstructions': writeCollection('siteInstructions', this.siteInstructions); break;
+      case 'meetings': writeCollection('meetings', this.meetings); break;
+      case 'customRecords': writeCollection('customRecords', this.customRecords); break;
+    }
+  }
+
+  public correctRecordDates(
+    moduleId: string,
+    recordId: string,
+    dateUpdates: Record<string, string | undefined>,
+    reason: string,
+    userId: string = 'usr-1',
+    userName: string = 'Admin'
+  ): { success: boolean; data?: any; error?: string } {
+    const target = this.getRecordByModuleAndId(moduleId, recordId);
+    if (!target) return { success: false, error: `Record not found in module ${moduleId}` };
+
+    const { record, collectionName, ref, projectId } = target;
+
+    // Check if official dates are modified and require a reason
+    const officialDateFields = ['submissionDate', 'consultantReceiptDate', 'consultantResponseDate', 'approvalDate', 'closureDate'];
+    const modifyingOfficial = Object.keys(dateUpdates).some(k => officialDateFields.includes(k) && dateUpdates[k] !== record[k]);
+    if (modifyingOfficial && (!reason || !reason.trim())) {
+      return { success: false, error: 'A valid contractual/technical reason is mandatory when correcting official lifecycle dates.' };
+    }
+
+    const fieldLabels: Record<string, { en: string; ar: string }> = {
+      preparationDate: { en: 'Preparation Date', ar: 'تاريخ الإعداد' },
+      internalReviewDate: { en: 'Internal Review Date', ar: 'تاريخ التدقيق الداخلي' },
+      submissionDate: { en: 'Submission / Sending Date', ar: 'تاريخ الإرسال / التسليم' },
+      plannedSubmissionDate: { en: 'Planned Submission Date', ar: 'تاريخ التسليم المخطط' },
+      consultantReceiptDate: { en: 'Consultant Receipt Date', ar: 'تاريخ استلام الاستشاري' },
+      requiredApprovalDate: { en: 'Turnaround SLA Deadline', ar: 'المهلة التعاقدية للرد' },
+      plannedResponseDate: { en: 'Planned Response Date', ar: 'تاريخ الرد المخطط' },
+      actualResponseDate: { en: 'Actual Response Date', ar: 'تاريخ الرد الفعلي' },
+      consultantResponseDate: { en: 'Consultant Response Date', ar: 'تاريخ رد الاستشاري' },
+      approvalDate: { en: 'Approval Date', ar: 'تاريخ الاعتماد' },
+      revisionDate: { en: 'Revision Date', ar: 'تاريخ الإصدار' },
+      inspectionDate: { en: 'Inspection Date', ar: 'تاريخ الفحص' },
+      dispatchDate: { en: 'Dispatch Date', ar: 'تاريخ الإرسال' },
+      closureDate: { en: 'Closure Date', ar: 'تاريخ الإغلاق' },
+    };
+
+    if (!record.dateCorrectionHistory) {
+      record.dateCorrectionHistory = [];
+    }
+
+    const nowIso = new Date().toISOString();
+
+    for (const [field, newVal] of Object.entries(dateUpdates)) {
+      if (newVal === undefined) continue;
+      const oldVal = record[field];
+      if (oldVal !== newVal) {
+        // Record correction in dateCorrectionHistory
+        const logEntry: DateCorrectionLog = {
+          id: `dcorr-${uuidv4().substring(0, 8)}`,
+          field,
+          fieldLabelEn: fieldLabels[field]?.en || field,
+          fieldLabelAr: fieldLabels[field]?.ar || field,
+          previousDate: oldVal,
+          newDate: newVal,
+          reason: reason || 'Authorized historical date correction',
+          correctedBy: userName,
+          correctedAt: nowIso,
+        };
+        record.dateCorrectionHistory.unshift(logEntry);
+        record.hasDateCorrections = true;
+        record[field] = newVal;
+
+        // Log audit event
+        this.logAudit({
+          projectId,
+          moduleId,
+          recordId: record.id,
+          recordRef: ref,
+          action: 'DATE_CORRECTION',
+          userId,
+          userName,
+          fieldChanged: field,
+          previousValue: oldVal || '(None)',
+          newValue: newVal,
+          reason: reason || 'Authorized historical date correction',
+          comment: `Date correction for ${fieldLabels[field]?.en || field}: ${oldVal || 'None'} -> ${newVal}. Reason: ${reason}`,
+        });
+      }
+    }
+
+    // Changing dates NEVER automatically marks a document as approved or rejected!
+    record.updatedAt = nowIso;
+    this.saveRecordByModule(collectionName);
+
+    return { success: true, data: record };
+  }
+
+  // --- Universal Document Links Engine ---
+  public addDocumentLink(
+    moduleId: string,
+    recordId: string,
+    linkData: Omit<DocumentLink, 'id' | 'addedAt'>,
+    userId: string = 'usr-1',
+    userName: string = 'Admin'
+  ): { success: boolean; data?: any; error?: string } {
+    const target = this.getRecordByModuleAndId(moduleId, recordId);
+    if (!target) return { success: false, error: `Record not found in module ${moduleId}` };
+
+    const { record, collectionName, ref, projectId } = target;
+
+    if (!linkData.url || !/^https?:\/\/.+/i.test(linkData.url.trim())) {
+      return { success: false, error: 'Document URL must be a valid HTTP or HTTPS web address.' };
+    }
+    if (!linkData.title || !linkData.title.trim()) {
+      return { success: false, error: 'Document title is required.' };
+    }
+
+    if (!record.documentLinks) {
+      record.documentLinks = [];
+    }
+
+    const newLink: DocumentLink = {
+      ...linkData,
+      id: `doclink-${uuidv4().substring(0, 8)}`,
+      title: linkData.title.trim(),
+      url: linkData.url.trim(),
+      category: linkData.category || 'General Reference',
+      addedBy: userName,
+      addedAt: new Date().toISOString(),
+    };
+
+    record.documentLinks.unshift(newLink);
+    record.updatedAt = new Date().toISOString();
+    this.saveRecordByModule(collectionName);
+
+    this.logAudit({
+      projectId,
+      moduleId,
+      recordId: record.id,
+      recordRef: ref,
+      action: 'LINK_ADD',
+      userId,
+      userName,
+      fieldChanged: 'documentLinks',
+      previousValue: undefined,
+      newValue: `${newLink.title} (${newLink.url})`,
+      comment: `Added external document link: ${newLink.title} [${newLink.category}]`,
+    });
+
+    return { success: true, data: { link: newLink, record } };
+  }
+
+  public updateDocumentLink(
+    moduleId: string,
+    recordId: string,
+    linkId: string,
+    updates: Partial<DocumentLink>,
+    userId: string = 'usr-1',
+    userName: string = 'Admin'
+  ): { success: boolean; data?: any; error?: string } {
+    const target = this.getRecordByModuleAndId(moduleId, recordId);
+    if (!target) return { success: false, error: `Record not found in module ${moduleId}` };
+
+    const { record, collectionName, ref, projectId } = target;
+    if (!record.documentLinks) record.documentLinks = [];
+
+    const linkIdx = record.documentLinks.findIndex((l: DocumentLink) => l.id === linkId);
+    if (linkIdx === -1) return { success: false, error: 'Document link not found' };
+
+    const oldLink = record.documentLinks[linkIdx];
+
+    if (updates.url && !/^https?:\/\/.+/i.test(updates.url.trim())) {
+      return { success: false, error: 'Document URL must be a valid HTTP or HTTPS address.' };
+    }
+
+    const updatedLink: DocumentLink = {
+      ...oldLink,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    record.documentLinks[linkIdx] = updatedLink;
+    record.updatedAt = new Date().toISOString();
+    this.saveRecordByModule(collectionName);
+
+    this.logAudit({
+      projectId,
+      moduleId,
+      recordId: record.id,
+      recordRef: ref,
+      action: 'LINK_UPDATE',
+      userId,
+      userName,
+      fieldChanged: 'documentLinks',
+      previousValue: `${oldLink.title} (${oldLink.url})`,
+      newValue: `${updatedLink.title} (${updatedLink.url})`,
+      comment: `Updated document link: ${updatedLink.title}`,
+    });
+
+    return { success: true, data: { link: updatedLink, record } };
+  }
+
+  public removeDocumentLink(
+    moduleId: string,
+    recordId: string,
+    linkId: string,
+    userId: string = 'usr-1',
+    userName: string = 'Admin'
+  ): { success: boolean; data?: any; error?: string } {
+    const target = this.getRecordByModuleAndId(moduleId, recordId);
+    if (!target) return { success: false, error: `Record not found in module ${moduleId}` };
+
+    const { record, collectionName, ref, projectId } = target;
+    if (!record.documentLinks) return { success: true, data: record };
+
+    const linkIdx = record.documentLinks.findIndex((l: DocumentLink) => l.id === linkId);
+    if (linkIdx === -1) return { success: false, error: 'Document link not found' };
+
+    const removed = record.documentLinks[linkIdx];
+    record.documentLinks.splice(linkIdx, 1);
+    record.updatedAt = new Date().toISOString();
+    this.saveRecordByModule(collectionName);
+
+    this.logAudit({
+      projectId,
+      moduleId,
+      recordId: record.id,
+      recordRef: ref,
+      action: 'LINK_DELETE',
+      userId,
+      userName,
+      fieldChanged: 'documentLinks',
+      previousValue: `${removed.title} (${removed.url})`,
+      newValue: undefined,
+      comment: `Removed document link: ${removed.title}`,
+    });
+
+    return { success: true, data: record };
+  }
+
+  // --- Universal Linked APEX DC Records Engine ---
+  public linkApexRecord(
+    sourceModuleId: string,
+    sourceRecordId: string,
+    targetInfo: {
+      recordType: ApexRecordType;
+      recordId: string;
+      relationship?: 'Referenced In' | 'Superseded By' | 'Supported By' | 'Related Action' | 'General Link';
+      notes?: string;
+    },
+    userId: string = 'usr-1',
+    userName: string = 'Admin'
+  ): { success: boolean; data?: any; error?: string } {
+    const sourceTarget = this.getRecordByModuleAndId(sourceModuleId, sourceRecordId);
+    if (!sourceTarget) return { success: false, error: `Source record not found in ${sourceModuleId}` };
+
+    const destTarget = this.getRecordByModuleAndId(
+      targetInfo.recordType === 'drawing' ? 'drawings' :
+      targetInfo.recordType === 'submittal' ? 'submittals' :
+      targetInfo.recordType === 'ir' ? 'irs' :
+      targetInfo.recordType === 'mir' ? 'mirs' :
+      targetInfo.recordType === 'correspondence' ? 'correspondence' :
+      targetInfo.recordType === 'rfi' ? 'rfis' :
+      targetInfo.recordType === 'quality' ? 'quality' :
+      targetInfo.recordType === 'transmittal' ? 'transmittals' :
+      targetInfo.recordType === 'handover' ? 'handover' :
+      targetInfo.recordType === 'siteInstruction' ? 'siteInstructions' :
+      targetInfo.recordType,
+      targetInfo.recordId
+    );
+
+    if (!destTarget) return { success: false, error: `Target record ${targetInfo.recordId} not found` };
+
+    const { record: srcRec, collectionName: srcCol, ref: srcRef, projectId: srcProj } = sourceTarget;
+    const { record: dstRec, ref: dstRef } = destTarget;
+
+    if (!srcRec.linkedApexRecords) srcRec.linkedApexRecords = [];
+
+    const exists = srcRec.linkedApexRecords.some((l: LinkedApexRecord) => l.recordId === targetInfo.recordId);
+    if (exists) {
+      return { success: false, error: 'This record is already linked.' };
+    }
+
+    const linkedItem: LinkedApexRecord = {
+      id: `lapx-${uuidv4().substring(0, 8)}`,
+      recordType: targetInfo.recordType,
+      recordId: targetInfo.recordId,
+      recordNumber: dstRef,
+      title: dstRec.title || dstRec.subject || dstRec.workDescription || dstRec.materialDescription || dstRec.description || dstRef,
+      revision: dstRec.currentRevision || dstRec.revisionNumber || dstRec.latestRevision || dstRec.drawingRevision || 'N/A',
+      status: dstRec.reviewStatus || dstRec.result || dstRec.status || dstRec.approvalStatus || 'N/A',
+      submissionDate: dstRec.submissionDate,
+      approvalDate: dstRec.approvalDate,
+      relationship: targetInfo.relationship || 'Referenced In',
+      notes: targetInfo.notes,
+      linkedAt: new Date().toISOString(),
+      linkedBy: userName,
+    };
+
+    srcRec.linkedApexRecords.unshift(linkedItem);
+    srcRec.updatedAt = new Date().toISOString();
+    this.saveRecordByModule(srcCol);
+
+    this.logAudit({
+      projectId: srcProj,
+      moduleId: sourceModuleId,
+      recordId: srcRec.id,
+      recordRef: srcRef,
+      action: 'RECORD_LINK',
+      userId,
+      userName,
+      fieldChanged: 'linkedApexRecords',
+      newValue: `${linkedItem.recordNumber} [${linkedItem.relationship}]`,
+      comment: `Linked ${targetInfo.recordType.toUpperCase()} ${linkedItem.recordNumber} to ${srcRef}`,
+    });
+
+    return { success: true, data: { linkedRecord: linkedItem, record: srcRec } };
+  }
+
+  public unlinkApexRecord(
+    sourceModuleId: string,
+    sourceRecordId: string,
+    linkedApexRecordId: string,
+    userId: string = 'usr-1',
+    userName: string = 'Admin'
+  ): { success: boolean; data?: any; error?: string } {
+    const sourceTarget = this.getRecordByModuleAndId(sourceModuleId, sourceRecordId);
+    if (!sourceTarget) return { success: false, error: `Source record not found in ${sourceModuleId}` };
+
+    const { record: srcRec, collectionName: srcCol, ref: srcRef, projectId: srcProj } = sourceTarget;
+    if (!srcRec.linkedApexRecords) return { success: true, data: srcRec };
+
+    const idx = srcRec.linkedApexRecords.findIndex((l: LinkedApexRecord) => l.id === linkedApexRecordId || l.recordId === linkedApexRecordId);
+    if (idx === -1) return { success: false, error: 'Linked record not found' };
+
+    const removed = srcRec.linkedApexRecords[idx];
+    srcRec.linkedApexRecords.splice(idx, 1);
+    srcRec.updatedAt = new Date().toISOString();
+    this.saveRecordByModule(srcCol);
+
+    this.logAudit({
+      projectId: srcProj,
+      moduleId: sourceModuleId,
+      recordId: srcRec.id,
+      recordRef: srcRef,
+      action: 'RECORD_LINK',
+      userId,
+      userName,
+      fieldChanged: 'linkedApexRecords',
+      previousValue: removed.recordNumber,
+      comment: `Unlinked APEX record: ${removed.recordNumber}`,
+    });
+
+    return { success: true, data: srcRec };
+  }
+
+  public getRecordAuditTrail(recordId: string, recordRef?: string): AuditEvent[] {
+    return this.auditEvents.filter(a => a.recordId === recordId || (recordRef && a.recordRef === recordRef));
   }
 }
 

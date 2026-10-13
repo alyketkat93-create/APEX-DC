@@ -6,9 +6,13 @@ import { QualityRecord, Discipline } from '@/types';
 import * as XLSX from 'xlsx';
 import { 
   ShieldAlert, Plus, Search, Download, Upload, Printer, 
-  AlertTriangle, CheckCircle2, Clock, ShieldCheck, FileSpreadsheet
+  AlertTriangle, CheckCircle2, Clock, ShieldCheck, FileSpreadsheet, Eye, X
 } from 'lucide-react';
 import { PrintableDocumentModal } from '@/components/common/PrintableDocumentModal';
+import { DateStatusBadge, DateLifecycleCard, DateInputsFormSection } from '@/components/common/DateLifecycleDisplay';
+import { UniversalDocumentLinks } from '@/components/common/UniversalDocumentLinks';
+import { RecordAuditHistory } from '@/components/common/RecordAuditHistory';
+import { calculateSlaStatus, formatDateSafe, todayIso } from '@/lib/dateUtils';
 
 export function QualityView() {
   const { currentProjectId, currentProject, language, t } = useProject();
@@ -20,10 +24,13 @@ export function QualityView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [severityFilter, setSeverityFilter] = useState('ALL');
+  const [slaFilter, setSlaFilter] = useState<'ALL' | 'AWAITING' | 'PENDING' | 'OVERDUE' | 'APPROVED'>('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'MISSING_DATES' | 'CORRECTED_DATES' | 'WITH_LINKS'>('ALL');
 
-  // Modals
+  // Modals & Drawer
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<QualityRecord | null>(null);
 
   // New NCR Form State
@@ -31,13 +38,24 @@ export function QualityView() {
   const [newType, setNewType] = useState<any>('NCR (Non-Conformance Report)');
   const [newDiscipline, setNewDiscipline] = useState<Discipline>('MEP-Firefighting');
   const [newLocation, setNewLocation] = useState('Laydown Yard 2, Warehouse 4B');
-  const [isCustomLoc, setIsCustomLoc] = useState(false);
   const [newParty, setNewParty] = useState('Al-Jazira Industrial Supplies');
   const [newSeverity, setNewSeverity] = useState<'Minor' | 'Major' | 'Critical'>('Major');
   const [newDesc, setNewDesc] = useState('');
   const [newRootCause, setNewRootCause] = useState('');
   const [newCorrective, setNewCorrective] = useState('');
   const [generatedDocNum, setGeneratedDocNum] = useState('');
+  const [newDates, setNewDates] = useState({
+    preparationDate: todayIso(),
+    internalReviewDate: '',
+    submissionDate: todayIso(),
+    plannedSubmissionDate: todayIso(),
+    consultantReceiptDate: '',
+    consultantResponseDate: '',
+    requiredApprovalDate: '',
+    approvalDate: '',
+    revisionDate: todayIso(),
+    closureDate: '',
+  });
 
   const fetchQuality = async () => {
     setLoading(true);
@@ -80,6 +98,18 @@ export function QualityView() {
 
   const handleOpenCreateModal = () => {
     generateNumber(newDiscipline);
+    setNewDates({
+      preparationDate: todayIso(),
+      internalReviewDate: '',
+      submissionDate: todayIso(),
+      plannedSubmissionDate: todayIso(),
+      consultantReceiptDate: '',
+      consultantResponseDate: '',
+      requiredApprovalDate: '',
+      approvalDate: '',
+      revisionDate: todayIso(),
+      closureDate: '',
+    });
     setCreateModalOpen(true);
   };
 
@@ -104,8 +134,9 @@ export function QualityView() {
           rootCause: newRootCause,
           correctiveAction: newCorrective,
           status: 'Open',
-          issueDate: new Date().toISOString().split('T')[0],
-          dueDate: new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0],
+          issueDate: newDates.submissionDate || todayIso(),
+          dueDate: newDates.requiredApprovalDate || new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0],
+          ...newDates,
         }),
       });
       const json = await res.json();
@@ -121,19 +152,27 @@ export function QualityView() {
   };
 
   const exportToExcel = () => {
-    const exportData = filteredRecords.map((r, index) => ({
-      '#': index + 1,
-      'Record Number': r.recordNumber,
-      'Type': r.recordType,
-      'Title': r.title,
-      'Discipline': r.discipline,
-      'Location': r.location,
-      'Responsible Party': r.responsibleParty,
-      'Severity': r.severity,
-      'Status': r.status,
-      'Issue Date': r.issueDate,
-      'Due Date': r.dueDate,
-    }));
+    const exportData = filteredRecords.map((r, index) => {
+      const sla = calculateSlaStatus(r, currentProject?.reviewDurationDays || 10);
+      return {
+        '#': index + 1,
+        'Record Number': r.recordNumber,
+        'Type': r.recordType,
+        'Title': r.title,
+        'Discipline': r.discipline,
+        'Location': r.location,
+        'Responsible Party': r.responsibleParty,
+        'Severity': r.severity,
+        'Status': r.status,
+        'SLA Turnaround': sla.label,
+        'Preparation Date': r.preparationDate || 'N/A',
+        'Submission Date': r.submissionDate || 'N/A',
+        'Consultant Response Date': r.consultantResponseDate || 'N/A',
+        'Closure Date': r.closureDate || 'N/A',
+        'Issue Date': r.issueDate,
+        'Due Date': r.dueDate,
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -148,8 +187,33 @@ export function QualityView() {
       r.responsibleParty.toLowerCase().includes(searchQuery.toLowerCase());
     const matchType = typeFilter === 'ALL' || r.recordType.includes(typeFilter);
     const matchSeverity = severityFilter === 'ALL' || r.severity === severityFilter;
-    return matchSearch && matchType && matchSeverity;
+
+    let matchSla = true;
+    const sla = calculateSlaStatus(r, currentProject?.reviewDurationDays || 10);
+    if (slaFilter === 'AWAITING') matchSla = sla.category === 'AWAITING_SUBMISSION';
+    else if (slaFilter === 'PENDING') matchSla = sla.category === 'PENDING_REVIEW';
+    else if (slaFilter === 'OVERDUE') matchSla = sla.category === 'OVERDUE';
+    else if (slaFilter === 'APPROVED') matchSla = sla.category === 'APPROVED';
+
+    let matchDateFilter = true;
+    if (dateFilter === 'MISSING_DATES') {
+      matchDateFilter = !r.submissionDate || (!r.approvalDate && !r.closureDate && !r.consultantResponseDate);
+    } else if (dateFilter === 'CORRECTED_DATES') {
+      matchDateFilter = Boolean(r.hasDateCorrections || (r.dateCorrectionHistory && r.dateCorrectionHistory.length > 0));
+    } else if (dateFilter === 'WITH_LINKS') {
+      matchDateFilter = Boolean((r.documentLinks && r.documentLinks.length > 0) || (r.linkedApexRecords && r.linkedApexRecords.length > 0));
+    }
+
+    return matchSearch && matchType && matchSeverity && matchSla && matchDateFilter;
   });
+
+  const slaStats = {
+    total: records.length,
+    awaiting: records.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 10).category === 'AWAITING_SUBMISSION').length,
+    pending: records.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 10).category === 'PENDING_REVIEW').length,
+    overdue: records.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 10).category === 'OVERDUE').length,
+    approved: records.filter(r => calculateSlaStatus(r, currentProject?.reviewDurationDays || 10).category === 'APPROVED').length,
+  };
 
   return (
     <div className="space-y-4">
@@ -166,7 +230,7 @@ export function QualityView() {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            NCRs, root-cause analyses, CARs, ITPs, and verification sign-off before closure
+            NCRs, root-cause analyses, CARs, ITPs & 8-point SLA turnaround tracking
           </p>
         </div>
 
@@ -187,6 +251,45 @@ export function QualityView() {
             <span>{language === 'ar' ? 'تقرير عدم مطابقة جديد' : 'Raise NCR'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Quick SLA Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
+          {language === 'ar' ? 'تصفية المهل والاعتماد:' : 'SLA Filter:'}
+        </span>
+        <button
+          onClick={() => setSlaFilter('ALL')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          {language === 'ar' ? 'الكل' : 'All'} ({slaStats.total})
+        </button>
+        <button
+          onClick={() => setSlaFilter('PENDING')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'PENDING' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+          }`}
+        >
+          {language === 'ar' ? 'مفتوح قيد المعالجة' : 'Open / Pending'} ({slaStats.pending})
+        </button>
+        <button
+          onClick={() => setSlaFilter('OVERDUE')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'OVERDUE' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+          }`}
+        >
+          ⚠️ {language === 'ar' ? 'متأخر عن الإغلاق' : 'Overdue Closeout'} ({slaStats.overdue})
+        </button>
+        <button
+          onClick={() => setSlaFilter('APPROVED')}
+          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+            slaFilter === 'APPROVED' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+          }`}
+        >
+          ✓ {language === 'ar' ? 'مغلق ومطابق' : 'Closed & Verified'} ({slaStats.approved})
+        </button>
       </div>
 
       {/* Filter Toolbar */}
@@ -224,6 +327,17 @@ export function QualityView() {
           <option value="Major">Major</option>
           <option value="Minor">Minor</option>
         </select>
+
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value as any)}
+          className="bg-slate-50 text-slate-800 border border-slate-200 rounded-lg px-2.5 py-2 font-medium"
+        >
+          <option value="ALL">All Date Records</option>
+          <option value="MISSING_DATES">Missing Critical Dates</option>
+          <option value="CORRECTED_DATES">Historical Date Corrections</option>
+          <option value="WITH_LINKS">With External Links / Records</option>
+        </select>
       </div>
 
       {/* Quality Records Table */}
@@ -238,13 +352,14 @@ export function QualityView() {
                 <th className="py-3 px-3">Severity</th>
                 <th className="py-3 px-3">Issue / Due Date</th>
                 <th className="py-3 px-3">Workflow Status</th>
+                <th className="py-3 px-3">Turnaround SLA</th>
                 <th className="py-3 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     No quality records found matching criteria.
                   </td>
                 </tr>
@@ -252,7 +367,15 @@ export function QualityView() {
                 filteredRecords.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition group">
                     <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                      {r.recordNumber}
+                      <button
+                        onClick={() => {
+                          setSelectedRecord(r);
+                          setDrawerOpen(true);
+                        }}
+                        className="hover:text-red-700 hover:underline text-left"
+                      >
+                        {r.recordNumber}
+                      </button>
                     </td>
 
                     <td className="py-3 px-3 max-w-xs">
@@ -260,46 +383,67 @@ export function QualityView() {
                       <div className="text-[11px] text-slate-500 line-clamp-1">{r.recordType} • {r.discipline}</div>
                     </td>
 
-                    <td className="py-3 px-3 whitespace-nowrap text-slate-700">
-                      <div className="font-semibold">{r.location}</div>
-                      <div className="text-[10px] text-slate-400">{r.responsibleParty}</div>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="font-semibold text-slate-800">{r.responsibleParty}</div>
+                      <div className="text-[10px] text-slate-400">{r.location}</div>
                     </td>
 
                     <td className="py-3 px-3 whitespace-nowrap">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                        r.severity === 'Critical' ? 'bg-red-200 text-red-950 font-black' :
-                        r.severity === 'Major' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        r.severity === 'Critical' ? 'bg-red-100 text-red-800 border border-red-300' :
+                        r.severity === 'Major' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                        'bg-slate-100 text-slate-700'
                       }`}>
                         {r.severity}
                       </span>
                     </td>
 
-                    <td className="py-3 px-3 font-mono text-slate-700 whitespace-nowrap text-[11px]">
-                      <div>Issued: {r.issueDate}</div>
-                      <span className="text-red-700 font-bold">Due: {r.dueDate}</span>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex flex-col text-[11px]">
+                        <span className="text-slate-700">Issued: <b>{formatDateSafe(r.submissionDate || r.issueDate)}</b></span>
+                        <span className="text-slate-400 text-[10px]">Due: {formatDateSafe(r.requiredApprovalDate || r.dueDate)}</span>
+                      </div>
                     </td>
 
                     <td className="py-3 px-3 whitespace-nowrap">
                       <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
                         r.status === 'Closed' ? 'bg-emerald-100 text-emerald-800' :
-                        r.status === 'Corrective Action Submitted' ? 'bg-blue-100 text-blue-800' :
-                        'bg-red-100 text-red-800'
+                        r.status === 'Open' ? 'bg-red-100 text-red-800' :
+                        'bg-amber-100 text-amber-800'
                       }`}>
                         {r.status}
                       </span>
                     </td>
 
+                    {/* Turnaround SLA */}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <DateStatusBadge dates={r} slaDays={currentProject?.reviewDurationDays || 10} />
+                    </td>
+
                     <td className="py-3 px-3 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => {
-                          setSelectedRecord(r);
-                          setPrintModalOpen(true);
-                        }}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
-                        title="Print Formal NCR Form"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedRecord(r);
+                            setDrawerOpen(true);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                          title="View 8-Point Dates Timeline"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSelectedRecord(r);
+                            setPrintModalOpen(true);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                          title="Print Formal NCR Form"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -309,19 +453,133 @@ export function QualityView() {
         </div>
       </div>
 
-      {/* Create NCR Modal */}
+      {/* Drawer for Selected Quality Record */}
+      {drawerOpen && selectedRecord && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-navy-950/60 backdrop-blur-xs animate-in fade-in">
+          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col">
+              <div className="px-6 py-4 bg-navy-900 text-white flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-mono font-bold text-red-400">
+                    {selectedRecord.recordNumber}
+                  </div>
+                  <h2 className="text-sm font-bold truncate max-w-md mt-0.5">
+                    {selectedRecord.title}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-navy-800 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                <DateLifecycleCard 
+                  dates={selectedRecord} 
+                  slaDays={currentProject?.reviewDurationDays || 10} 
+                  moduleId="quality"
+                  recordId={selectedRecord.id}
+                  recordRef={selectedRecord.recordNumber}
+                  allowEdit={true}
+                  onDatesUpdated={(updated) => {
+                    setSelectedRecord(prev => prev ? { ...prev, ...updated } : null);
+                    fetchQuality();
+                  }}
+                />
+
+                {/* Universal Documents & References + Linked APEX Records */}
+                <UniversalDocumentLinks
+                  moduleId="quality"
+                  recordId={selectedRecord.id}
+                  recordRef={selectedRecord.recordNumber}
+                  documentLinks={selectedRecord.documentLinks || []}
+                  linkedApexRecords={selectedRecord.linkedApexRecords || []}
+                  legacyAttachments={selectedRecord.attachments}
+                  legacyFileUrl={selectedRecord.fileUrl}
+                  projectId={currentProjectId}
+                  onUpdated={(updated) => {
+                    setSelectedRecord(updated);
+                    fetchQuality();
+                  }}
+                  language={language}
+                />
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-3">
+                    Defect & Corrective Action Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Responsible Party</span>
+                      <span className="font-semibold text-slate-800">{selectedRecord.responsibleParty}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Location</span>
+                      <span className="font-semibold text-slate-800">{selectedRecord.location}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Severity</span>
+                      <span className="font-bold text-red-800">{selectedRecord.severity}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Status</span>
+                      <span className="font-bold text-slate-800">{selectedRecord.status}</span>
+                    </div>
+                  </div>
+                  {selectedRecord.correctiveAction && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <span className="text-slate-400 block text-[10px]">Corrective Action Plan</span>
+                      <p className="text-slate-800 mt-1 leading-relaxed">{selectedRecord.correctiveAction}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Immutable Audit Trail for this Quality Record */}
+                <RecordAuditHistory
+                  recordId={selectedRecord.id}
+                  recordRef={selectedRecord.recordNumber}
+                  projectId={currentProjectId}
+                  language={language}
+                />
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    setPrintModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold"
+                >
+                  Print NCR
+                </button>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-1.5 rounded bg-navy-900 text-white font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Modal */}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 bg-navy-900 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-sm">Issue Non-Conformance Report (NCR)</h3>
-                <div className="text-[11px] text-slate-300">Contractual QA/QC defect documentation</div>
+                <h3 className="font-bold text-sm">Raise Quality Non-Conformance Report (NCR)</h3>
+                <div className="text-[11px] text-slate-300">Defect documentation, root cause analysis & 8-point date tracking</div>
               </div>
               <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
-            <form onSubmit={handleCreateRecord} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleCreateRecord} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Generated NCR Number</label>
                 <input
@@ -334,12 +592,12 @@ export function QualityView() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">NCR Title / Defect Summary</label>
+                <label className="block font-bold text-slate-700 mb-1">Title of Non-Conformance</label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Defective Firefighting Pipes Delivered with Surface Corrosion"
+                  placeholder="e.g. Non-Compliant Grooved Coupling Gasket Installed on Fire Main"
                   className="w-full border border-slate-300 rounded p-2 text-xs"
                   required
                 />
@@ -361,67 +619,38 @@ export function QualityView() {
                     <option value="MEP-HVAC">MEP-HVAC</option>
                     <option value="MEP-Plumbing">MEP-Plumbing</option>
                     <option value="MEP-Electrical">MEP-Electrical</option>
-                    <option value="Structural">Structural</option>
+                    <option value="Civil & Structural">Civil & Structural</option>
+                    <option value="Architectural">Architectural</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Severity</label>
+                  <label className="block font-bold text-slate-700 mb-1">Severity Level</label>
                   <select
                     value={newSeverity}
                     onChange={(e) => setNewSeverity(e.target.value as any)}
-                    className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-bold text-red-800"
+                    className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-bold"
                   >
-                    <option value="Critical">Critical (Immediate Stop Work)</option>
-                    <option value="Major">Major (Rework / Quarantine Required)</option>
-                    <option value="Minor">Minor (Rectification)</option>
+                    <option value="Minor">Minor (Rectify without structural impact)</option>
+                    <option value="Major">Major (Defect requires formal engineering CAR)</option>
+                    <option value="Critical">Critical (Immediate stop-work order)</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block font-bold text-slate-700">Location on Site</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomLoc(!isCustomLoc)}
-                      className="text-[10px] text-red-700 hover:underline font-semibold"
-                    >
-                      {isCustomLoc ? (language === 'ar' ? 'من المباني' : 'From Buildings') : (language === 'ar' ? '+ إدخال حر' : '+ Free Text')}
-                    </button>
-                  </div>
-                  {isCustomLoc ? (
-                    <input
-                      type="text"
-                      value={newLocation}
-                      onChange={(e) => setNewLocation(e.target.value)}
-                      placeholder="e.g. Laydown Yard 2, Warehouse 4B"
-                      className="w-full border border-slate-300 rounded p-2 text-xs"
-                      required
-                    />
-                  ) : (
-                    <select
-                      value={newLocation}
-                      onChange={(e) => setNewLocation(e.target.value)}
-                      className="w-full border border-slate-300 rounded p-2 text-xs bg-white font-medium"
-                      required
-                    >
-                      {currentProject?.buildings && currentProject.buildings.length > 0 ? (
-                        currentProject.buildings.map((b) => (
-                          <option key={b.id} value={`${b.code} - ${b.name}`}>
-                            {b.code} — {language === 'ar' ? (b.nameAr || b.name) : b.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="Main Site Zone">Main Site Zone</option>
-                      )}
-                      <option value="Laydown Yard & Warehouse">Laydown Yard & Warehouse</option>
-                    </select>
-                  )}
+                  <label className="block font-bold text-slate-700 mb-1">Location of Defect</label>
+                  <input
+                    type="text"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    className="w-full border border-slate-300 rounded p-2 text-xs"
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Responsible Party</label>
+                  <label className="block font-bold text-slate-700 mb-1">Responsible Subcontractor / Party</label>
                   <input
                     type="text"
                     value={newParty}
@@ -433,16 +662,21 @@ export function QualityView() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Description of Non-Conformance</label>
+                <label className="block font-bold text-slate-700 mb-1">Defect Description</label>
                 <textarea
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="Detail exact standard, spec clause, or drawing violation..."
-                  className="w-full border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-red-500"
+                  className="w-full border border-slate-300 rounded p-2 text-xs"
                   rows={2}
                   required
                 />
               </div>
+
+              {/* 8-Point Dates */}
+              <DateInputsFormSection
+                dates={newDates}
+                onChange={setNewDates}
+              />
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button
@@ -464,10 +698,10 @@ export function QualityView() {
         </div>
       )}
 
-      {/* Printable Sheet */}
+      {/* Printable Modal */}
       <PrintableDocumentModal
         docType="NCR_FORM"
-        title="NON-CONFORMANCE REPORT (NCR)"
+        title="NON-CONFORMANCE REPORT (NCR / CAR)"
         data={selectedRecord}
         isOpen={printModalOpen}
         onClose={() => setPrintModalOpen(false)}

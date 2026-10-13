@@ -255,5 +255,87 @@
     ],
     "createdAt": "2024-01-10T08:00:00Z",
     "updatedAt": "2026-10-12T12:00:00Z"
+  },
+  {
+    "code": "KETKAT-01",
+    "name": "Ketkat Hotels",
+    "nameAr": "فنادق قطقاط",
+    "client": "Ketkat",
+    "consultant": "ECG",
+    "mainContractor": "APEX Engineering & Construction JV",
+    "subcontractors": [
+      "Specialized MEP Subcontractor"
+    ],
+    "projectManager": "Eng. Khalid Al-Mutairi",
+    "projectEngineer": "Eng. Majed Al-Zahrani",
+    "documentController": "Eng. Aly Ketkat",
+    "qaQcManager": "Eng. Sarah Al-Ghamdi",
+    "location": "Riyadh, Kingdom of Saudi Arabia",
+    "contractNumber": "KSA-PRJ-KETKAT-01-2026",
+    "contractValue": 350000000,
+    "currency": "SAR",
+    "startDate": "2026-10-12",
+    "plannedCompletionDate": "2027-06-30",
+    "status": "Active",
+    "projectType": "Residential Compound",
+    "description": "Turnkey execution of Ketkat Hotels",
+    "numberingFormat": "{PROJECT}-{DISC}-{TYPE}-{SEQ:4}-{REV}",
+    "reviewDurationDays": 14,
+    "buildings": [
+      {
+        "id": "bld-1791833304417",
+        "code": "A",
+        "name": "Building A",
+        "nameAr": "المبني A",
+        "floors": [
+          "Basement Level 3",
+          "Basement Level 2",
+          "Basement Level 1",
+          "Ground Floor",
+          "Mezzanine",
+          "Level 1",
+          "Level 2",
+          "Level 3",
+          "Level 4",
+          "Roof",
+          "Upper Roof"
+        ]
+      },
+      {
+        "id": "bld-1791833415949",
+        "code": "B",
+        "name": "Building B",
+        "nameAr": "المبني B",
+        "floors": [
+          "Basement Level 3",
+          "Basement Level 2",
+          "Basement Level 1",
+          "Ground Floor",
+          "Mezzanine",
+          "Level 1",
+          "Level 2",
+          "Level 3",
+          "Level 4",
+          "Roof",
+          "Upper Roof"
+        ]
+      }
+    ],
+    "floors": [
+      "Basement Level 3",
+      "Basement Level 2",
+      "Basement Level 1",
+      "Ground Floor",
+      "Mezzanine",
+      "Level 1",
+      "Level 2",
+      "Level 3",
+      "Level 4",
+      "Roof",
+      "Upper Roof"
+    ],
+    "id": "prj-5c7ce5ad",
+    "createdAt": "2026-10-12T19:30:19.821Z",
+    "updatedAt": "2026-10-12T19:30:19.821Z"
   }
 ]

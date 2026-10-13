@@ -6,8 +6,11 @@ import { CustomModuleDefinition, CustomRecord } from '@/types';
 import * as XLSX from 'xlsx';
 import { 
   Sparkles, Plus, Search, Download, CheckCircle2, 
-  Wrench, FileSpreadsheet, Eye, Printer, Layers
+  Wrench, FileSpreadsheet, Eye, Printer, Layers, X
 } from 'lucide-react';
+import { DateLifecycleCard } from '@/components/common/DateLifecycleDisplay';
+import { UniversalDocumentLinks } from '@/components/common/UniversalDocumentLinks';
+import { RecordAuditHistory } from '@/components/common/RecordAuditHistory';
 
 interface CustomRecordViewProps {
   moduleId: string;
@@ -21,6 +24,10 @@ export function CustomRecordView({ moduleId }: CustomRecordViewProps) {
   const [records, setRecords] = useState<CustomRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Drawer / Selection
+  const [selectedRecord, setSelectedRecord] = useState<CustomRecord | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Create Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -200,13 +207,14 @@ export function CustomRecordView({ moduleId }: CustomRecordViewProps) {
                   </th>
                 ))}
                 <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-3 text-right">Created Date</th>
+                <th className="py-3 px-3">Created Date</th>
+                <th className="py-3 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={definition.fields.length + 2} className="py-8 text-center text-slate-400">
+                  <td colSpan={definition.fields.length + 3} className="py-8 text-center text-slate-400">
                     No records found in this custom register.
                   </td>
                 </tr>
@@ -214,7 +222,15 @@ export function CustomRecordView({ moduleId }: CustomRecordViewProps) {
                 filteredRecords.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition group">
                     <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                      {r.recordNumber}
+                      <button
+                        onClick={() => {
+                          setSelectedRecord(r);
+                          setDrawerOpen(true);
+                        }}
+                        className="text-amber-700 hover:underline font-bold"
+                      >
+                        {r.recordNumber}
+                      </button>
                     </td>
 
                     {definition.fields.slice(0, 5).map((f) => (
@@ -229,8 +245,21 @@ export function CustomRecordView({ moduleId }: CustomRecordViewProps) {
                       </span>
                     </td>
 
-                    <td className="py-3 px-3 text-right font-mono text-slate-500 whitespace-nowrap text-[11px]">
+                    <td className="py-3 px-3 font-mono text-slate-500 whitespace-nowrap text-[11px]">
                       {r.createdAt.split('T')[0]}
+                    </td>
+
+                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          setSelectedRecord(r);
+                          setDrawerOpen(true);
+                        }}
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                        title="View record details, dates & document links"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -323,6 +352,103 @@ export function CustomRecordView({ moduleId }: CustomRecordViewProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record Details Drawer */}
+      {drawerOpen && selectedRecord && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-navy-950/50 backdrop-blur-xs flex justify-end animate-in fade-in">
+          <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col justify-between overflow-y-auto">
+            <div>
+              {/* Drawer Header */}
+              <div className="bg-[#0F2744] text-white p-5 flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-xs bg-white/20 text-white px-2 py-0.5 rounded font-bold">
+                      {selectedRecord.recordNumber}
+                    </span>
+                    <span className="text-xs bg-amber-500/20 text-amber-200 border border-amber-500/40 px-2 py-0.5 rounded font-semibold">
+                      {definition.name}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-sm text-white line-clamp-2">
+                    {String(selectedRecord.data[definition.fields[0]?.name] || selectedRecord.recordNumber)}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                {/* Date Lifecycle Card */}
+                <DateLifecycleCard 
+                  dates={selectedRecord} 
+                  slaDays={currentProject?.reviewDurationDays || 14} 
+                  moduleId={definition.id}
+                  recordId={selectedRecord.id}
+                  recordRef={selectedRecord.recordNumber}
+                  allowEdit={true}
+                  onDatesUpdated={(updated) => {
+                    setSelectedRecord((prev) => prev ? { ...prev, ...updated } : null);
+                    fetchRecords();
+                  }}
+                />
+
+                {/* Universal Documents & References + Linked APEX Records */}
+                <UniversalDocumentLinks
+                  moduleId={definition.id}
+                  recordId={selectedRecord.id}
+                  recordRef={selectedRecord.recordNumber}
+                  documentLinks={selectedRecord.documentLinks || []}
+                  linkedApexRecords={selectedRecord.linkedApexRecords || []}
+                  projectId={currentProjectId}
+                  onUpdated={(updated) => {
+                    setSelectedRecord(updated);
+                    fetchRecords();
+                  }}
+                  language={language}
+                />
+
+                {/* Custom Fields Details */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-xs">Record Field Data</h4>
+                  <div className="grid grid-cols-2 gap-3 text-slate-700">
+                    {definition.fields.map((f) => (
+                      <div key={f.id} className={f.type === 'longtext' ? 'col-span-2' : ''}>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">
+                          {language === 'ar' ? f.labelAr : f.label}
+                        </span>
+                        <span className="font-medium text-slate-800">
+                          {String(selectedRecord.data[f.name] || '—')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Immutable Audit History */}
+                <RecordAuditHistory
+                  recordId={selectedRecord.id}
+                  recordRef={selectedRecord.recordNumber}
+                  projectId={currentProjectId}
+                  language={language}
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-bold text-xs transition"
+              >
+                Close Drawer
+              </button>
+            </div>
           </div>
         </div>
       )}

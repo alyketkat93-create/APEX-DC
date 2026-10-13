@@ -31,10 +31,9 @@ export function Sidebar({ currentModule, setCurrentModule }: SidebarProps) {
       ]
     },
     {
-      group: language === 'ar' ? 'الهندسة والمخططات' : 'Drawings & Design',
+      group: language === 'ar' ? 'المخططات والتسليمات' : 'Drawings & Submissions',
       items: [
         { id: 'drawings', label: t.modules.drawings, icon: Compass, badge: '3' },
-        { id: 'transmittals', label: t.modules.transmittals, icon: SendHorizontal },
       ]
     },
     {

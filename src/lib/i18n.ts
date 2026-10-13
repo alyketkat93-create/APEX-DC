@@ -50,7 +50,7 @@ export const translations = {
     modules: {
       dashboard: 'Executive Dashboard',
       projects: 'Projects Management',
-      drawings: 'Drawing Management',
+      drawings: 'Drawings & Document Submissions',
       submittals: 'Technical Submittals',
       irs: 'Inspection Requests (IR)',
       mirs: 'Material Inspection Requests (MIR)',
@@ -153,7 +153,7 @@ export const translations = {
     modules: {
       dashboard: 'لوحة التحكم التنفيذية',
       projects: 'إدارة المشاريع',
-      drawings: 'إدارة المخططات الهندسية',
+      drawings: 'المخططات والتسليمات الفنية',
       submittals: 'الاعتمادات الفنية والمواد',
       irs: 'طلبات فحص الأعمال (IR / WIR)',
       mirs: 'طلبات فحص وتوريد المواد (MIR)',

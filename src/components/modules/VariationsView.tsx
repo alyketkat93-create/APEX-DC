@@ -6,14 +6,21 @@ import { SiteInstruction } from '@/types';
 import * as XLSX from 'xlsx';
 import { 
   GitPullRequest, Plus, Search, Download, DollarSign, 
-  Clock, AlertTriangle, CheckCircle2, FileText, ArrowRight
+  Clock, AlertTriangle, CheckCircle2, FileText, ArrowRight, Eye, X
 } from 'lucide-react';
+import { DateLifecycleCard } from '@/components/common/DateLifecycleDisplay';
+import { UniversalDocumentLinks } from '@/components/common/UniversalDocumentLinks';
+import { RecordAuditHistory } from '@/components/common/RecordAuditHistory';
 
 export function VariationsView() {
   const { currentProjectId, currentProject, language, t } = useProject();
 
   const [items, setItems] = useState<SiteInstruction[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Drawer / Selection
+  const [selectedItem, setSelectedItem] = useState<SiteInstruction | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Form Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -175,13 +182,22 @@ export function VariationsView() {
                 <th className="py-3 px-3 text-right">Potential Cost (SAR)</th>
                 <th className="py-3 px-3 text-center">Time (Days)</th>
                 <th className="py-3 px-3">Approval Status</th>
+                <th className="py-3 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((si) => (
                 <tr key={si.id} className="hover:bg-slate-50 transition group">
                   <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                    {si.instructionNumber}
+                    <button
+                      onClick={() => {
+                        setSelectedItem(si);
+                        setDrawerOpen(true);
+                      }}
+                      className="text-amber-700 hover:underline font-bold"
+                    >
+                      {si.instructionNumber}
+                    </button>
                   </td>
 
                   <td className="py-3 px-3 whitespace-nowrap font-semibold text-amber-900">
@@ -213,6 +229,19 @@ export function VariationsView() {
                     <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
                       {si.status}
                     </span>
+                  </td>
+
+                  <td className="py-3 px-3 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => {
+                        setSelectedItem(si);
+                        setDrawerOpen(true);
+                      }}
+                      className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-navy-900 transition"
+                      title="View details, dates & document links"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -331,6 +360,118 @@ export function VariationsView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Variation Details Drawer */}
+      {drawerOpen && selectedItem && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-navy-950/50 backdrop-blur-xs flex justify-end animate-in fade-in">
+          <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col justify-between overflow-y-auto">
+            <div>
+              {/* Drawer Header */}
+              <div className="bg-[#0F2744] text-white p-5 flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-xs bg-white/20 text-white px-2 py-0.5 rounded font-bold">
+                      {selectedItem.instructionNumber}
+                    </span>
+                    <span className="text-xs bg-amber-500/20 text-amber-200 border border-amber-500/40 px-2 py-0.5 rounded font-semibold">
+                      {selectedItem.instructionType}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-sm text-white line-clamp-2">
+                    {selectedItem.description}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                {/* Date Lifecycle Card */}
+                <DateLifecycleCard 
+                  dates={selectedItem} 
+                  slaDays={currentProject?.reviewDurationDays || 14} 
+                  moduleId="siteInstructions"
+                  recordId={selectedItem.id}
+                  recordRef={selectedItem.instructionNumber}
+                  allowEdit={true}
+                  onDatesUpdated={(updated) => {
+                    setSelectedItem((prev) => prev ? { ...prev, ...updated } : null);
+                    fetchVariations();
+                  }}
+                />
+
+                {/* Universal Documents & References + Linked APEX Records */}
+                <UniversalDocumentLinks
+                  moduleId="siteInstructions"
+                  recordId={selectedItem.id}
+                  recordRef={selectedItem.instructionNumber}
+                  documentLinks={selectedItem.documentLinks || []}
+                  linkedApexRecords={selectedItem.linkedApexRecords || []}
+                  legacyAttachments={selectedItem.attachments}
+                  projectId={currentProjectId}
+                  onUpdated={(updated) => {
+                    setSelectedItem(updated);
+                    fetchVariations();
+                  }}
+                  language={language}
+                />
+
+                {/* Scope & Financial Details */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-xs">Variation Parameters</h4>
+                  <div className="grid grid-cols-2 gap-3 text-slate-700">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Originator</span>
+                      <span className="font-medium text-slate-800">{selectedItem.originator}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Contract Clause</span>
+                      <span className="font-medium text-slate-800">{selectedItem.contractClauseRef || 'Clause 13'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Potential Cost Impact</span>
+                      <span className="font-bold text-amber-700">
+                        {selectedItem.potentialCostImpact ? `${Number(selectedItem.potentialCostImpact).toLocaleString()} SAR` : 'None'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Potential Time Impact</span>
+                      <span className="font-bold text-slate-800">
+                        {selectedItem.potentialTimeImpactDays ? `+${selectedItem.potentialTimeImpactDays} Days` : '0 Days'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Reason for Directive</span>
+                      <span className="font-medium text-slate-800">{selectedItem.reasonForChange}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Immutable Audit History */}
+                <RecordAuditHistory
+                  recordId={selectedItem.id}
+                  recordRef={selectedItem.instructionNumber}
+                  projectId={currentProjectId}
+                  language={language}
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-bold text-xs transition"
+              >
+                Close Drawer
+              </button>
+            </div>
           </div>
         </div>
       )}

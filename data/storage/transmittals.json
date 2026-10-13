@@ -1,6 +1,217 @@
 [
   {
     "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-TRNTEST-0555",
+    "category": "Shop Drawings",
+    "sender": "APEX Document Control",
+    "recipient": "Dar Al-Handasah JV",
+    "submissionDate": "2026-10-13",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-TRNTEST-0552-00",
+        "docTitle": "Ventilation Fan Coil Layout Level 2",
+        "revision": "00",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Consultant Review within contractual SLA",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": false,
+    "status": "Issued / Dispatched",
+    "id": "trn-1013c01a",
+    "preparationDate": "2026-10-13",
+    "requiredApprovalDate": "2026-10-27",
+    "revisionDate": "2026-10-13",
+    "createdAt": "2026-10-13T08:28:10.556Z",
+    "updatedAt": "2026-10-13T08:28:10.556Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-T0541",
+    "category": "Shop Drawings",
+    "sender": "APEX DC",
+    "recipient": "Dar Al-Handasah",
+    "submissionDate": "2026-10-10",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "DWG-001",
+        "docTitle": "HVAC Duct",
+        "revision": "P01",
+        "docType": "Shop Drawing"
+      },
+      {
+        "docNumber": "DWG-002",
+        "docTitle": "Piping Header",
+        "revision": "P02",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Review within 14 days",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "acknowledgedBy": "Consultant DC",
+    "status": "Acknowledged",
+    "id": "trn-121ec339",
+    "preparationDate": "2026-10-13",
+    "requiredApprovalDate": "2026-10-24",
+    "revisionDate": "2026-10-13",
+    "createdAt": "2026-10-13T08:28:10.542Z",
+    "updatedAt": "2026-10-13T08:28:10.542Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-TRNTEST-6252",
+    "category": "Shop Drawings",
+    "sender": "APEX Document Control",
+    "recipient": "Dar Al-Handasah JV",
+    "submissionDate": "2026-10-13",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-TRNTEST-6250-00",
+        "docTitle": "Ventilation Fan Coil Layout Level 2",
+        "revision": "00",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Consultant Review within contractual SLA",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": false,
+    "status": "Issued / Dispatched",
+    "id": "trn-600da61f",
+    "preparationDate": "2026-10-13",
+    "requiredApprovalDate": "2026-10-27",
+    "revisionDate": "2026-10-13",
+    "createdAt": "2026-10-13T08:23:26.252Z",
+    "updatedAt": "2026-10-13T08:23:26.252Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-T6238",
+    "category": "Shop Drawings",
+    "sender": "APEX DC",
+    "recipient": "Dar Al-Handasah",
+    "submissionDate": "2026-10-10",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "DWG-001",
+        "docTitle": "HVAC Duct",
+        "revision": "P01",
+        "docType": "Shop Drawing"
+      },
+      {
+        "docNumber": "DWG-002",
+        "docTitle": "Piping Header",
+        "revision": "P02",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Review within 14 days",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "acknowledgedBy": "Consultant DC",
+    "status": "Acknowledged",
+    "id": "trn-4f39cc89",
+    "preparationDate": "2026-10-13",
+    "requiredApprovalDate": "2026-10-24",
+    "revisionDate": "2026-10-13",
+    "createdAt": "2026-10-13T08:23:26.239Z",
+    "updatedAt": "2026-10-13T08:23:26.239Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-TRNTEST-3511",
+    "category": "Shop Drawings",
+    "sender": "APEX Document Control",
+    "recipient": "Dar Al-Handasah JV",
+    "submissionDate": "2026-10-12",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-TRNTEST-3509-00",
+        "docTitle": "Ventilation Fan Coil Layout Level 2",
+        "revision": "00",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Consultant Review within contractual SLA",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": false,
+    "status": "Issued / Dispatched",
+    "id": "trn-410e43a3",
+    "preparationDate": "2026-10-12",
+    "requiredApprovalDate": "2026-10-26",
+    "revisionDate": "2026-10-12",
+    "createdAt": "2026-10-12T20:45:43.511Z",
+    "updatedAt": "2026-10-12T20:45:43.511Z"
+  },
+  {
+    "projectId": "prj-ksp-01",
+    "transmittalNumber": "APX-KSP-03-DC-TR-T3500",
+    "category": "Shop Drawings",
+    "sender": "APEX DC",
+    "recipient": "Dar Al-Handasah",
+    "submissionDate": "2026-10-10",
+    "purpose": "For Approval",
+    "documentList": [
+      {
+        "docNumber": "DWG-001",
+        "docTitle": "HVAC Duct",
+        "revision": "P01",
+        "docType": "Shop Drawing"
+      },
+      {
+        "docNumber": "DWG-002",
+        "docTitle": "Piping Header",
+        "revision": "P02",
+        "docType": "Shop Drawing"
+      }
+    ],
+    "requiredAction": "Review within 14 days",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "acknowledgedBy": "Consultant DC",
+    "status": "Acknowledged",
+    "id": "trn-b8c85ddb",
+    "preparationDate": "2026-10-12",
+    "requiredApprovalDate": "2026-10-24",
+    "revisionDate": "2026-10-12",
+    "createdAt": "2026-10-12T20:45:43.500Z",
+    "updatedAt": "2026-10-12T20:45:43.500Z"
+  },
+  {
+    "projectId": "prj-5c7ce5ad",
+    "transmittalNumber": "KETKAT-01-DC-TR-0001",
+    "category": "Shop Drawings",
+    "sender": "APEX Engineering & Construction JV",
+    "recipient": "Dar Al-Handasah Consultants",
+    "submissionDate": "2026-10-12",
+    "purpose": "For Approval",
+    "requiredAction": "Review and return with approval code within 14 calendar days.",
+    "deliveryMethod": "System Transmittal",
+    "receiptAcknowledged": true,
+    "status": "Received by Consultant",
+    "documentList": [
+      {
+        "docNumber": "APX-KSP-03-MEP-HVAC-0042-P02",
+        "docTitle": "Central Chiller Plant — Piping Layout",
+        "revision": "P02",
+        "docType": "Shop Drawing",
+        "copies": 1,
+        "format": "PDF",
+        "notes": "Enclosed with complete submittal package"
+      }
+    ],
+    "id": "trn-924596a3",
+    "createdAt": "2026-10-12T19:31:50.603Z",
+    "updatedAt": "2026-10-12T20:54:32.888Z",
+    "consultantReceiptDate": "2026-10-12"
+  },
+  {
+    "projectId": "prj-ksp-01",
     "transmittalNumber": "APX-KSP-03-DC-TR-T7559",
     "category": "Shop Drawings",
     "sender": "APEX DC",

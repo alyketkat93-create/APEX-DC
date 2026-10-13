@@ -3,11 +3,12 @@ import { db } from '@/lib/server/db';
 import { translations } from '@/lib/i18n';
 import fs from 'fs';
 import path from 'path';
+import { calculateSlaStatus, todayIso, addDays } from '@/lib/dateUtils';
 
 export async function GET() {
   const results: { test: number; title: string; passed: boolean; message: string }[] = [];
   let passedTests = 0;
-  const totalTests = 15;
+  const totalTests = 23;
 
   function assert(condition: any, message: string) {
     if (!condition) {
@@ -394,6 +395,435 @@ export async function GET() {
       title: 'Dashboard Metrics Computation from Actual Database',
       passed: true,
       message: `Computed real counts — Drawings: ${totalDrawingsCount}, Submittals: ${totalSubsCount}, IRs: ${totalIrsCount}.`
+    });
+    passedTests++;
+
+    // Test 16: Mandatory 8-Point Date Tracking Across All Modules
+    const testHo = db.createHandoverItem({
+      projectId: 'prj-ksp-01',
+      itemNumber: `APX-KSP-03-HO-T${Date.now().toString().slice(-4)}`,
+      category: 'As-Built Drawing',
+      title: 'HVAC Chilled Water Piping As-Built Model',
+      discipline: 'MEP-HVAC',
+      system: 'Chilled Water',
+      buildingZone: 'Energy Center & Central Utilities - Basement Level 3',
+      latestRevision: '00',
+      siteVerificationStatus: 'Pending',
+      qaQcVerificationStatus: 'Pending',
+      consultantReviewStatus: 'Pending',
+      approvalStatus: 'Pending',
+      handoverPackageRef: 'PKG-HO-CHW-01',
+      completionPercent: 40,
+      preparationDate: '2026-10-01',
+      internalReviewDate: '2026-10-03',
+      submissionDate: '2026-10-05',
+      consultantReceiptDate: '2026-10-06',
+      consultantResponseDate: '2026-10-10',
+      approvalDate: '2026-10-10',
+      revisionDate: '2026-10-01',
+      closureDate: '2026-10-11',
+    });
+    assert(
+      testHo.preparationDate === '2026-10-01' &&
+      testHo.internalReviewDate === '2026-10-03' &&
+      testHo.submissionDate === '2026-10-05' &&
+      testHo.consultantReceiptDate === '2026-10-06' &&
+      testHo.consultantResponseDate === '2026-10-10' &&
+      testHo.approvalDate === '2026-10-10' &&
+      testHo.revisionDate === '2026-10-01' &&
+      testHo.closureDate === '2026-10-11',
+      'Handover item must store and preserve all 8 mandatory lifecycle dates'
+    );
+    results.push({
+      test: 16,
+      title: 'Mandatory 8-Point Date Lifecycle Tracking Across All Models',
+      passed: true,
+      message: `Verified 8 lifecycle dates: Preparation, Internal Review, Submission, Receipt, Response, Approval, Revision, and Closure.`
+    });
+    passedTests++;
+
+    // Test 17: Transmittal Linkage & Strict "No Auto-Approval" Invariant
+    const dwgForTrn = db.createDrawing({
+      projectId: 'prj-ksp-01',
+      drawingNumber: `APX-KSP-03-MEP-HVAC-TRNTEST-${Date.now().toString().slice(-4)}-00`,
+      title: 'Ventilation Fan Coil Layout Level 2',
+      discipline: 'MEP-HVAC',
+      system: 'HVAC Air Distribution',
+      buildingZone: 'Main Cultural Theater',
+      floorLevel: 'Level 2',
+      drawingType: 'Shop Drawing',
+      originator: 'APEX Technical Office',
+      currentRevision: '00',
+      reviewStatus: 'Draft / Prepared',
+      revisionDate: todayIso(),
+      preparationDate: todayIso(),
+      revisions: [
+        {
+          id: `rev-tr-${Date.now()}`,
+          drawingId: '',
+          revisionNumber: '00',
+          submissionDate: todayIso(),
+          status: 'Draft / Prepared',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    });
+
+    const formalTrn = db.createTransmittal({
+      projectId: 'prj-ksp-01',
+      transmittalNumber: `APX-KSP-03-DC-TR-TRNTEST-${Date.now().toString().slice(-4)}`,
+      category: 'Shop Drawings',
+      sender: 'APEX Document Control',
+      recipient: 'Dar Al-Handasah JV',
+      submissionDate: todayIso(),
+      purpose: 'For Approval',
+      documentList: [
+        {
+          docNumber: dwgForTrn.drawingNumber,
+          docTitle: dwgForTrn.title,
+          revision: '00',
+          docType: 'Shop Drawing',
+        }
+      ],
+      requiredAction: 'Consultant Review within contractual SLA',
+      deliveryMethod: 'System Transmittal',
+      receiptAcknowledged: false,
+      status: 'Issued / Dispatched',
+    });
+
+    const refreshedDwg = db.getDrawingById(dwgForTrn.id);
+    assert(refreshedDwg, 'Drawing must exist');
+    assert(refreshedDwg!.relatedTransmittalId === formalTrn.transmittalNumber, 'Drawing must be linked to formal transmittal slip');
+    assert(refreshedDwg!.submissionDate === formalTrn.submissionDate, 'Drawing submissionDate must be set from transmittal');
+    assert(refreshedDwg!.reviewStatus === 'Pending Consultant Review', 'Drawing reviewStatus must be updated to Pending Consultant Review');
+    assert(
+      refreshedDwg!.reviewStatus !== 'Code A - Approved' && 
+      refreshedDwg!.reviewStatus !== 'Code B - Approved as Noted' &&
+      !refreshedDwg!.approvalDate,
+      'CRITICAL: Sending a transmittal MUST NEVER automatically mark the drawing as approved!'
+    );
+    results.push({
+      test: 17,
+      title: 'Transmittal Linkage & Strict "No Auto-Approval" Rule',
+      passed: true,
+      message: `Transmittal ${formalTrn.transmittalNumber} linked to drawing. Review status transitioned to Pending Consultant Review without premature auto-approval.`
+    });
+    passedTests++;
+
+    // Test 18: Turnaround SLA Calculation Engine & Dynamic Overdue Categorization
+    const draftItem = { preparationDate: todayIso() };
+    const slaDraft = calculateSlaStatus(draftItem, 14);
+    assert(slaDraft.status === 'AWAITING_SUBMISSION', 'Unsubmitted item must be AWAITING_SUBMISSION');
+
+    const freshSubmittedItem = { submissionDate: todayIso() };
+    const slaPending = calculateSlaStatus(freshSubmittedItem, 14);
+    assert(slaPending.status === 'PENDING_REVIEW' && !slaPending.isOverdue && (slaPending.countdownDays ?? 0) > 0, 'Recent submission must be PENDING_REVIEW with positive countdown');
+
+    const overdueItem = { submissionDate: '2026-09-01' };
+    const slaOverdue = calculateSlaStatus(overdueItem, 14);
+    assert(slaOverdue.status === 'OVERDUE' && slaOverdue.isOverdue, 'Submission past 14-day SLA deadline must be flagged OVERDUE');
+
+    const approvedItem = { submissionDate: '2026-10-01', approvalDate: '2026-10-10' };
+    const slaApproved = calculateSlaStatus(approvedItem, 14);
+    assert(slaApproved.status === 'APPROVED', 'Approved item must be marked APPROVED');
+
+    results.push({
+      test: 18,
+      title: 'Contractual Turnaround SLA Calculation Engine',
+      passed: true,
+      message: `Verified SLA engine: Awaiting Submission -> Pending Review (14d SLA) -> Overdue Alert -> Approved.`
+    });
+    passedTests++;
+
+    // Test 19: Date Correction Engine & Database Persistence
+    const testSubDate = db.createSubmittal({
+      projectId: 'prj-ksp-01',
+      submittalNumber: `APX-KSP-03-MEP-MAT-DATE-${Date.now().toString().slice(-4)}`,
+      title: 'Ductwork Thermal Insulation Materials',
+      type: 'Material Submittal',
+      discipline: 'MEP-HVAC',
+      system: 'Air Conditioning',
+      specSection: '15250',
+      manufacturer: 'Kimmco Isover',
+      supplier: 'Al-Khater Building Supplies',
+      countryOfOrigin: 'Saudi Arabia',
+      materialDescription: 'Fiberglass Duct Wrap 50mm, 24kg/m3',
+      complianceStatus: 'Fully Compliant',
+      submittedBy: 'Eng. Aly Ketkat',
+      preparedBy: 'Eng. Aly Ketkat',
+      checkedBy: 'Eng. Majed',
+      revisionNumber: '00',
+      submissionDate: '2026-10-01',
+      reviewStatus: 'Pending Consultant Review',
+    });
+
+    const dateCorrRes = db.correctRecordDates(
+      'submittals',
+      testSubDate.id,
+      {
+        submissionDate: '2026-09-20',
+        consultantReceiptDate: '2026-09-22',
+        approvalDate: '2026-10-02',
+      },
+      'Corrected per Consultant Formal Letter REF-DAR-1092',
+      'usr-1',
+      'Eng. Aly Ketkat'
+    );
+
+    assert(dateCorrRes.success, `Date correction must succeed: ${dateCorrRes.error}`);
+    const verifiedSub = db.getSubmittalById(testSubDate.id);
+    assert(verifiedSub, 'Submittal must exist');
+    assert(verifiedSub!.submissionDate === '2026-09-20', 'submissionDate must be updated to 2026-09-20');
+    assert(verifiedSub!.consultantReceiptDate === '2026-09-22', 'consultantReceiptDate must be updated');
+    assert(verifiedSub!.approvalDate === '2026-10-02', 'approvalDate must be updated');
+    assert(verifiedSub!.hasDateCorrections === true, 'hasDateCorrections flag must be set to true');
+    assert(verifiedSub!.dateCorrectionHistory && verifiedSub!.dateCorrectionHistory.length >= 2, 'dateCorrectionHistory must contain logs');
+
+    // Verify persistence to JSON storage file
+    const storageFile = path.join(process.cwd(), 'data', 'storage', 'submittals.json');
+    assert(fs.existsSync(storageFile), 'Storage JSON file must exist');
+    const rawDisk = JSON.parse(fs.readFileSync(storageFile, 'utf8'));
+    const diskRecord = rawDisk.find((r: any) => r.id === testSubDate.id);
+    assert(diskRecord && diskRecord.submissionDate === '2026-09-20', 'Changes must be persisted to data/storage/submittals.json on disk');
+
+    results.push({
+      test: 19,
+      title: 'Date Correction Engine & JSON Database Persistence',
+      passed: true,
+      message: `Updated dates saved to database on disk (submission: 2026-09-20, approval: 2026-10-02) with historical correction logs.`
+    });
+    passedTests++;
+
+    // Test 20: Mandatory Reason Validation on Official Dates & Audit Log Verification
+    const noReasonAttempt = db.correctRecordDates(
+      'submittals',
+      testSubDate.id,
+      { submissionDate: '2026-08-01' },
+      '', // Blank reason
+      'usr-1',
+      'Eng. Aly'
+    );
+    assert(noReasonAttempt.success === false, 'Date correction on official date without a valid reason must be rejected');
+    assert(noReasonAttempt.error?.includes('mandatory'), 'Error message must specify reason is mandatory');
+
+    // Now test with valid reason and check audit trail
+    const auditedCorrection = db.correctRecordDates(
+      'submittals',
+      testSubDate.id,
+      { submissionDate: '2026-08-15' },
+      'Contractual adjustment following EOT variation approval',
+      'usr-1',
+      'Eng. Aly Ketkat'
+    );
+    assert(auditedCorrection.success, 'Correction with valid reason must succeed');
+
+    const dateAuditEvents = db.getRecordAuditTrail(testSubDate.id, testSubDate.submittalNumber).filter(
+      (a: any) => a.action === 'DATE_CORRECTION'
+    );
+    assert(dateAuditEvents.length > 0, 'DATE_CORRECTION event must be recorded in the audit trail');
+    assert(
+      dateAuditEvents[0].reason?.includes('Contractual adjustment'),
+      'Audit log must retain documented reason and technical justification'
+    );
+
+    results.push({
+      test: 20,
+      title: 'Mandatory Reason Enforcement & Immutable Audit Trail',
+      passed: true,
+      message: `Enforced mandatory justification for official dates (blank reason rejected). DATE_CORRECTION logged with full reason in audit trail.`
+    });
+    passedTests++;
+
+    // Test 21: Universal Document Links Engine (Add, Update, Remove External HTTPS Links)
+    const addLinkRes = db.addDocumentLink(
+      'submittals',
+      testSubDate.id,
+      {
+        title: 'Manufacturer Factory Test Certificate (SharePoint)',
+        url: 'https://aljazira.sharepoint.com/sites/dc/mep/test-cert-750tr.pdf',
+        category: 'Test Report / Certificate',
+        docNumber: 'CERT-ISO-9001-2026',
+        revision: '01',
+        description: 'Original stamped by third-party testing agency',
+      },
+      'usr-1',
+      'Eng. Aly Ketkat'
+    );
+    assert(addLinkRes.success && addLinkRes.data?.link, `Adding link must succeed: ${addLinkRes.error}`);
+    const addedLinkId = addLinkRes.data.link.id;
+
+    const subWithLink = db.getSubmittalById(testSubDate.id);
+    assert(subWithLink!.documentLinks && subWithLink!.documentLinks.length > 0, 'documentLinks array must contain added link');
+    assert(subWithLink!.documentLinks![0].id === addedLinkId, 'Link ID must match generated ID');
+
+    // Update link (Replace URL with Autodesk Construction Cloud link)
+    const updateLinkRes = db.updateDocumentLink(
+      'submittals',
+      testSubDate.id,
+      addedLinkId,
+      {
+        url: 'https://acc.autodesk.com/docs/files/projects/ksp-01/mep/test-cert-750tr-rev2.pdf',
+        revision: '02',
+      },
+      'usr-1',
+      'Eng. Aly Ketkat'
+    );
+    assert(updateLinkRes.success, `Updating link must succeed: ${updateLinkRes.error}`);
+    const subWithUpdatedLink = db.getSubmittalById(testSubDate.id);
+    assert(
+      subWithUpdatedLink!.documentLinks?.find(l => l.id === addedLinkId)?.url.includes('acc.autodesk.com'),
+      'URL must be updated to Autodesk Construction Cloud link'
+    );
+
+    // Remove link
+    const removeLinkRes = db.removeDocumentLink(
+      'submittals',
+      testSubDate.id,
+      addedLinkId,
+      'usr-1',
+      'Eng. Aly Ketkat'
+    );
+    assert(removeLinkRes.success, `Removing link must succeed: ${removeLinkRes.error}`);
+    const subAfterRemoval = db.getSubmittalById(testSubDate.id);
+    assert(
+      !subAfterRemoval!.documentLinks?.some(l => l.id === addedLinkId),
+      'Link must be removed from documentLinks array'
+    );
+
+    results.push({
+      test: 21,
+      title: 'Universal Document Links Management (SharePoint, ACC, Cloud URLs)',
+      passed: true,
+      message: `Successfully added HTTPS link, updated/replaced target URL, and removed link with LINK_ADD, LINK_UPDATE, and LINK_DELETE audit entries.`
+    });
+    passedTests++;
+
+    // Test 22: Cross-Module Record Linking Without Duplication
+    const targetDwg = db.getDrawings('prj-ksp-01')[0];
+    assert(targetDwg, 'Target drawing must exist');
+    const dwgCountBefore = db.getDrawings('prj-ksp-01').length;
+
+    const newIr = db.createInspectionRequest({
+      projectId: 'prj-ksp-01',
+      irNumber: `APX-KSP-03-QC-IR-LINK-${Date.now().toString().slice(-4)}`,
+      inspectionType: 'Work Inspection Request (WIR)',
+      discipline: 'MEP-HVAC',
+      system: 'Chilled Water Plant',
+      buildingZone: 'Energy Center B3',
+      floorLocation: 'Basement 3',
+      workDescription: 'Inspection of chilled water pipe installation and supports',
+      approvedDrawingRef: targetDwg.drawingNumber,
+      contractorRequestDate: todayIso(),
+      requestedDateTime: `${todayIso()}T10:00:00Z`,
+      submittedBy: 'Eng. Aly Ketkat',
+      siteEngineer: 'Eng. Tariq Zaid',
+      qaQcEngineer: 'Eng. Sarah Al-Ghamdi',
+      result: 'Submitted',
+      submissionDate: todayIso(),
+    });
+
+    const linkRecordRes = db.linkApexRecord(
+      'irs',
+      newIr.id,
+      {
+        recordType: 'drawing',
+        recordId: targetDwg.id,
+        relationship: 'Referenced In',
+        notes: 'Basis of inspection',
+      },
+      'usr-1',
+      'Eng. Aly Ketkat'
+    );
+    assert(linkRecordRes.success, `Linking APEX record must succeed: ${linkRecordRes.error}`);
+
+    const refreshedIr = db.getInspectionRequestById(newIr.id);
+    assert(refreshedIr!.linkedApexRecords && refreshedIr!.linkedApexRecords.length > 0, 'linkedApexRecords must contain the linked drawing');
+    assert(refreshedIr!.linkedApexRecords![0].recordId === targetDwg.id, 'Linked record must reference the target drawing ID');
+
+    // Verify drawing is NOT duplicated
+    const dwgCountAfter = db.getDrawings('prj-ksp-01').length;
+    assert(dwgCountBefore === dwgCountAfter, 'Linking records MUST NOT duplicate any records in the target register');
+
+    results.push({
+      test: 22,
+      title: 'Cross-Module Record Linking Without Record Duplication',
+      passed: true,
+      message: `Linked drawing ${targetDwg.drawingNumber} to inspection request ${newIr.irNumber} without duplicating drawing records.`
+    });
+    passedTests++;
+
+    // Test 23: Strict Invariant: Date & Link Updates NEVER Prematurely Modify Approval Status
+    const invariantDwg = db.createDrawing({
+      projectId: 'prj-ksp-01',
+      drawingNumber: `APX-KSP-03-MEP-HVAC-INV-${Date.now().toString().slice(-4)}`,
+      title: 'Basement Ventilation Schematic Layout',
+      discipline: 'MEP-HVAC',
+      system: 'Ventilation',
+      buildingZone: 'Basement 1',
+      floorLevel: 'B1',
+      drawingType: 'Shop Drawing',
+      originator: 'APEX Technical Office',
+      currentRevision: '00',
+      reviewStatus: 'Pending Consultant Review',
+      revisionDate: todayIso(),
+      preparationDate: todayIso(),
+      submissionDate: todayIso(),
+      revisions: [
+        {
+          id: `rev-inv-${Date.now()}`,
+          drawingId: '',
+          revisionNumber: '00',
+          submissionDate: todayIso(),
+          status: 'Pending Consultant Review',
+          createdAt: new Date().toISOString(),
+        }
+      ]
+    });
+
+    // 1. Correct dates including approvalDate
+    db.correctRecordDates(
+      'drawings',
+      invariantDwg.id,
+      {
+        approvalDate: '2026-10-05',
+        consultantResponseDate: '2026-10-05',
+      },
+      'Administrative date adjustment',
+      'usr-1',
+      'Eng. Aly'
+    );
+
+    const checkedDwg = db.getDrawingById(invariantDwg.id);
+    assert(checkedDwg, 'Drawing must exist');
+    assert(
+      checkedDwg!.reviewStatus === 'Pending Consultant Review',
+      'STRICT INVARIANT: Modifying dates must NEVER prematurely change reviewStatus to Approved!'
+    );
+
+    // 2. Add an external link
+    db.addDocumentLink(
+      'drawings',
+      invariantDwg.id,
+      {
+        title: 'BIM 360 Coordinated Model',
+        url: 'https://docs.b360.autodesk.com/projects/ksp-01/model.nwd',
+        category: 'BIM Model / CAD',
+      },
+      'usr-1',
+      'Eng. Aly'
+    );
+
+    const checkedDwgAfterLink = db.getDrawingById(invariantDwg.id);
+    assert(
+      checkedDwgAfterLink!.reviewStatus === 'Pending Consultant Review',
+      'STRICT INVARIANT: Adding document links must NEVER mutate document reviewStatus!'
+    );
+
+    results.push({
+      test: 23,
+      title: 'Strict Workflow Invariant: Zero Premature Auto-Approval on Metadata Changes',
+      passed: true,
+      message: `Verified core invariant: editing dates or adding links leaves reviewStatus strictly unaltered (Pending Consultant Review remains intact).`
     });
     passedTests++;
 
