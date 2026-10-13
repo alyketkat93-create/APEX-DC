@@ -5,6 +5,11 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-navy?style=for-the-badge)]()
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Falyketkat93-create%2FAPEX-DC)
+
+> 🌐 **Live Public Demo:** [https://c74cafc2b86d2d.lhr.life](https://c74cafc2b86d2d.lhr.life)  
+> 📦 **GitHub Repository:** [https://github.com/alyketkat93-create/APEX-DC](https://github.com/alyketkat93-create/APEX-DC)
+
 **APEX DC** is an enterprise-grade SaaS platform built specifically for mega construction projects, general contractors, MEP contractors, engineering consultants, and project management offices (PMOs). It manages the entire project documentation lifecycle with strict revision control, 8-point contractual date tracking, SLA compliance, cross-module document linking, and immutable audit trails.
 
 ---
